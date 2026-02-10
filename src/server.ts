@@ -12,6 +12,7 @@ import { handleWriteCards } from './tools/write-cards.js';
 import { logger } from './lib/logger.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { SupabaseTokenVerifier } from './lib/auth-provider.js';
+import { createAuthMiddleware } from './middleware/auth.js';
 
 export function createApp(config: Config): express.Express {
   const supabase = createSupabaseClient(config.supabaseUrl, config.supabaseServiceRoleKey);
@@ -47,28 +48,7 @@ export function createApp(config: Config): express.Express {
   });
 
   // Auth Middleware
-  const authenticate = async (
-    req: express.Request,
-    res: express.Response,
-    next: express.NextFunction,
-  ) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      res.status(401).json({ error: 'Missing Authorization header' });
-      return;
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-
-    // Check OAuth Token
-    try {
-      await authVerifier.verifyAccessToken(token);
-      next();
-    } catch (error) {
-      logger.warn({ error }, 'Authentication failed');
-      res.status(401).json({ error: 'Invalid token' });
-    }
-  };
+  const authenticate = createAuthMiddleware(authVerifier);
 
   // Store active transports
   const transports = new Map<string, SSEServerTransport>();

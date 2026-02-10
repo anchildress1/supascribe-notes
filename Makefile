@@ -1,4 +1,7 @@
-.PHONY: lint format test test-coverage secrets-scan ai-checks build clean
+.PHONY: lint format test test-coverage secrets-scan ai-checks build clean dev
+
+dev:
+	npm run dev
 
 lint:
 	npx eslint .

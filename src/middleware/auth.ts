@@ -7,9 +7,15 @@ export function createAuthMiddleware(authVerifier: SupabaseTokenVerifier, public
     const authHeader = req.headers.authorization;
     let token: string | undefined;
 
-    // 1. Try Authorization header
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.replace('Bearer ', '');
+    // 1. Try Authorization header (case-insensitive)
+    const match = authHeader?.match(/^Bearer\s+(.+)$/i);
+    if (match) {
+      token = match[1];
+    } else if (authHeader) {
+      logger.warn(
+        { authHeader: authHeader.substring(0, 10) + '...' },
+        'Authorization header present but invalid format',
+      );
     }
 
     if (!token) {
@@ -70,7 +76,8 @@ export function createAuthMiddleware(authVerifier: SupabaseTokenVerifier, public
       await authVerifier.verifyAccessToken(token);
       next();
     } catch (error) {
-      logger.warn({ error }, 'Authentication failed');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.warn({ error: errorMessage }, 'Authentication failed');
       // If the token is invalid, we can technically also send the challenge,
       // but a 401 with "Invalid token" is also acceptable.
       // To be safe and help clients discover the config, let's include the header here too.

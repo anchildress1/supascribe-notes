@@ -1,5 +1,6 @@
 import type { OAuthTokenVerifier } from '@modelcontextprotocol/sdk/server/auth/provider.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
+import { logger } from './logger.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export class SupabaseTokenVerifier implements OAuthTokenVerifier {
@@ -13,9 +14,17 @@ export class SupabaseTokenVerifier implements OAuthTokenVerifier {
       error,
     } = await this.supabase.auth.getUser(token);
 
-    if (error || !user) {
-      throw new Error('Invalid access token');
+    if (error) {
+      logger.error({ error }, 'Supabase getUser failed');
+      throw new Error(`Invalid access token: ${error.message}`);
     }
+
+    if (!user) {
+      logger.error('Supabase getUser returned no user');
+      throw new Error('Invalid access token: No user found');
+    }
+
+    logger.debug({ userId: user.id }, 'Supabase token verified successfully');
 
     // Extract expiration from token directly since getUser validates it but doesn't return exp
     let expiresAt: number;

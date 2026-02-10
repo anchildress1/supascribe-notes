@@ -11,7 +11,14 @@ vi.mock('../../../src/lib/logger.js', () => ({
 
 describe('requestLogger', () => {
   it('should log incoming request and completed request', () => {
-    const req = { method: 'GET', url: '/test' } as Request;
+    const req = {
+      method: 'GET',
+      url: '/test',
+      headers: {
+        authorization: 'Bearer secrets',
+        'user-agent': 'test-agent',
+      },
+    } as unknown as Request;
     const res = {
       on: vi.fn(),
       statusCode: 200,
@@ -20,7 +27,20 @@ describe('requestLogger', () => {
 
     requestLogger(req, res, next);
 
-    expect(logger.info).toHaveBeenCalledWith({ method: 'GET', url: '/test' }, 'Incoming request');
+    expect(logger.info).toHaveBeenCalledWith(
+      {
+        method: 'GET',
+        url: '/test',
+        headers: {
+          authorization: 'Bearer secrets...[redacted]',
+          'user-agent': 'test-agent',
+          origin: undefined,
+          referer: undefined,
+          accept: undefined,
+        },
+      },
+      'Incoming request',
+    );
     expect(next).toHaveBeenCalled();
     expect(res.on).toHaveBeenCalledWith('finish', expect.any(Function));
 

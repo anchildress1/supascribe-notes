@@ -1,0 +1,150 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { handleWriteCards } from '../../../src/tools/write-cards.js';
+import type { CardInput } from '../../../src/schemas/card.js';
+
+function createMockSupabase({
+  selectResult = { data: null, error: null },
+  upsertResult = { error: null },
+  insertResult = { error: null },
+}: {
+  selectResult?: { data: unknown; error: null | { message: string } };
+  upsertResult?: { error: null | { message: string } };
+  insertResult?: { error: null | { message: string } };
+} = {}) {
+  const selectMock = vi.fn().mockReturnValue({
+    eq: vi.fn().mockReturnValue({
+      maybeSingle: vi.fn().mockResolvedValue(selectResult),
+    }),
+  });
+
+  const upsertMock = vi.fn().mockResolvedValue(upsertResult);
+  const insertMock = vi.fn().mockResolvedValue(insertResult);
+
+  return {
+    from: vi.fn().mockImplementation((table: string) => {
+      if (table === 'cards') {
+        return { select: selectMock, upsert: upsertMock };
+      }
+      return { insert: insertMock };
+    }),
+    _mocks: { selectMock, upsertMock, insertMock },
+  } as unknown as SupabaseClient & {
+    _mocks: {
+      selectMock: ReturnType<typeof vi.fn>;
+      upsertMock: ReturnType<typeof vi.fn>;
+      insertMock: ReturnType<typeof vi.fn>;
+    };
+  };
+}
+
+const validCard: CardInput = {
+  title: 'Test Card',
+  blurb: 'A test blurb',
+  fact: 'An interesting fact',
+  tags: { lvl0: ['tech'] },
+  projects: ['project-a'],
+  category: 'reference',
+  signal: 3,
+};
+
+describe('handleWriteCards', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('creates a new card successfully', async () => {
+    const supabase = createMockSupabase();
+    const result = await handleWriteCards(supabase, [validCard]);
+
+    const body = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
+    expect(body.written).toBe(1);
+    expect(body.errors).toBe(0);
+    expect(body.results[0].status).toBe('created');
+    expect(body.results[0].title).toBe('Test Card');
+    expect(body.run_id).toBeDefined();
+  });
+
+  it('updates an existing card', async () => {
+    const supabase = createMockSupabase({
+      selectResult: { data: { objectID: '550e8400-e29b-41d4-a716-446655440000' }, error: null },
+    });
+
+    const card = { ...validCard, objectID: '550e8400-e29b-41d4-a716-446655440000' };
+    const result = await handleWriteCards(supabase, [card]);
+
+    const body = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
+    expect(body.results[0].status).toBe('updated');
+  });
+
+  it('handles upsert failure gracefully', async () => {
+    const supabase = createMockSupabase({
+      upsertResult: { error: { message: 'Constraint violation' } },
+    });
+    const result = await handleWriteCards(supabase, [validCard]);
+
+    const body = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
+    expect(body.written).toBe(0);
+    expect(body.errors).toBe(1);
+    expect(body.error_details[0]).toContain('Constraint violation');
+  });
+
+  it('handles multiple cards with mixed results', async () => {
+    let callCount = 0;
+    const supabase = {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'cards') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              }),
+            }),
+            upsert: vi.fn().mockImplementation(() => {
+              callCount++;
+              if (callCount === 2) {
+                return Promise.resolve({ error: { message: 'Failed' } });
+              }
+              return Promise.resolve({ error: null });
+            }),
+          };
+        }
+        return { insert: vi.fn().mockResolvedValue({ error: null }) };
+      }),
+    } as unknown as SupabaseClient;
+
+    const cards = [
+      { ...validCard, title: 'Card 1' },
+      { ...validCard, title: 'Card 2' },
+    ];
+    const result = await handleWriteCards(supabase, cards);
+
+    const body = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
+    expect(body.written).toBe(1);
+    expect(body.errors).toBe(1);
+  });
+
+  it('handles card without optional url', async () => {
+    const supabase = createMockSupabase();
+    const cardWithoutUrl: CardInput = { ...validCard };
+    delete (cardWithoutUrl as Record<string, unknown>).url;
+
+    const result = await handleWriteCards(supabase, [cardWithoutUrl]);
+    const body = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
+    expect(body.written).toBe(1);
+  });
+
+  it('returns isError on catastrophic failure', async () => {
+    const supabase = {
+      from: vi.fn().mockImplementation(() => {
+        throw new Error('Database down');
+      }),
+    } as unknown as SupabaseClient;
+
+    const result = await handleWriteCards(supabase, [validCard]);
+    expect(result.isError).toBe(true);
+
+    const body = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
+    expect(body.error).toBe('Database down');
+  });
+});

@@ -114,6 +114,13 @@ describe('MCP Server Integration', () => {
     expect(body.token_endpoint).toBe(`${testConfig.supabaseUrl}/auth/v1/oauth/token`);
   });
 
+  it('GET /.well-known/oauth-protected-resource/sse returns specific metadata', async () => {
+    const res = await fetch(`${baseUrl}/.well-known/oauth-protected-resource/sse`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { resource: string };
+    expect(body.resource).toBe(`${testConfig.publicUrl}/sse`);
+  });
+
   it('GET /sse initiates SSE connection', async () => {
     const res = await fetch(`${baseUrl}/sse`, {
       headers: {

@@ -109,6 +109,16 @@ export function createApp(config: Config): express.Express {
     });
   });
 
+  // SSE specific OAuth Protected Resource Metadata
+  app.get('/.well-known/oauth-protected-resource/sse', (_req, res) => {
+    res.json({
+      resource: `${config.publicUrl}/sse`,
+      authorization_servers: [`${config.supabaseUrl}/auth/v1`],
+      scopes_supported: [],
+      bearer_methods_supported: ['header'],
+    });
+  });
+
   // Auth Middleware
   const authenticate = createAuthMiddleware(authVerifier, config.publicUrl);
 
@@ -116,7 +126,7 @@ export function createApp(config: Config): express.Express {
   const transports = new Map<string, SSEServerTransport>();
 
   // SSE endpoint
-  app.get('/sse', authenticate, async (req, res) => {
+  app.use('/sse', authenticate, async (req, res) => {
     logger.info('New SSE connection attempt');
 
     // Create a new transport for this connection

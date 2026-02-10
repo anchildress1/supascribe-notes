@@ -63,10 +63,12 @@ export function createAuthMiddleware(authVerifier: SupabaseTokenVerifier, public
         return;
       }
 
-      res.set(
-        'WWW-Authenticate',
-        `Bearer resource_metadata="${publicUrl}/.well-known/oauth-protected-resource"`,
-      );
+      let resourceMetadataUrl = `${publicUrl}/.well-known/oauth-protected-resource`;
+      if (req.path.endsWith('/sse')) {
+        resourceMetadataUrl = `${publicUrl}/.well-known/oauth-protected-resource/sse`;
+      }
+
+      res.set('WWW-Authenticate', `Bearer resource_metadata="${resourceMetadataUrl}"`);
       res.type('text/plain').status(401).send('Unauthorized');
       return;
     }
@@ -81,9 +83,14 @@ export function createAuthMiddleware(authVerifier: SupabaseTokenVerifier, public
       // If the token is invalid, we can technically also send the challenge,
       // but a 401 with "Invalid token" is also acceptable.
       // To be safe and help clients discover the config, let's include the header here too.
+      let resourceMetadataUrl = `${publicUrl}/.well-known/oauth-protected-resource`;
+      if (req.path.endsWith('/sse')) {
+        resourceMetadataUrl = `${publicUrl}/.well-known/oauth-protected-resource/sse`;
+      }
+
       res.set(
         'WWW-Authenticate',
-        `Bearer resource_metadata="${publicUrl}/.well-known/oauth-protected-resource", error="invalid_token"`,
+        `Bearer resource_metadata="${resourceMetadataUrl}", error="invalid_token"`,
       );
       res.type('text/plain').status(401).send('Invalid token');
     }

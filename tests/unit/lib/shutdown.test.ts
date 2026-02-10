@@ -12,7 +12,7 @@ vi.mock('../../../src/lib/logger.js', () => ({
 
 describe('createShutdownHandler', () => {
   let mockServer: Server;
-  let exitSpy: ReturnType<typeof vi.spyOn>;
+  let exitSpy: ReturnType<typeof vi.spyOn<typeof process, 'exit'>>;
 
   beforeEach(() => {
     mockServer = {

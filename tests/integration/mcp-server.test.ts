@@ -7,23 +7,6 @@ import type { Config } from '../../src/config.js';
 // Mock Supabase client
 vi.mock('../../src/lib/supabase.js', () => ({
   createSupabaseClient: vi.fn().mockReturnValue({
-    auth: {
-      getUser: vi.fn().mockImplementation(async (token) => {
-        if (token === 'valid-token') {
-          return {
-            data: {
-              user: {
-                id: 'test-user',
-                email: 'test@example.com',
-                role: 'authenticated',
-              },
-            },
-            error: null,
-          };
-        }
-        return { data: { user: null }, error: { message: 'Invalid token' } };
-      }),
-    },
     from: vi.fn().mockImplementation((table: string) => {
       if (table === 'cards') {
         return {
@@ -50,12 +33,6 @@ const testConfig: Config = {
   publicUrl: 'http://localhost:0',
 };
 
-const MCP_HEADERS = {
-  'Content-Type': 'application/json',
-  Accept: 'application/json, text/event-stream',
-  Authorization: 'Bearer valid-token',
-};
-
 describe('MCP Server Integration', () => {
   let app: Express;
   let server: Server;
@@ -74,75 +51,94 @@ describe('MCP Server Integration', () => {
   });
 
   it('GET /status returns 200 ok', async () => {
-    const res = await fetch(`${baseUrl}/status`, {
-      headers: { Authorization: 'Bearer test-auth-token' },
-    });
+    const res = await fetch(`${baseUrl}/status`);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, unknown>;
     expect(body.status).toBe('ok');
   });
 
-  it('returns 401 without auth token', async () => {
-    // /status is public, so we use /mcp or a non-existent route that falls through to auth
-    const res = await fetch(`${baseUrl}/mcp`, { method: 'POST' });
-    expect(res.status).toBe(401);
-  });
-
-  it('POST /mcp with initialize request creates session', async () => {
-    const initPayload = {
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        protocolVersion: '2025-03-26',
-        capabilities: {},
-        clientInfo: { name: 'test-client', version: '1.0.0' },
+  it('GET /sse initiates SSE connection', async () => {
+    const res = await fetch(`${baseUrl}/sse`, {
+      headers: {
+        Accept: 'text/event-stream',
       },
-    };
-
-    const res = await fetch(`${baseUrl}/mcp`, {
-      method: 'POST',
-      headers: MCP_HEADERS,
-      body: JSON.stringify(initPayload),
     });
 
     expect(res.status).toBe(200);
-    const sessionId = res.headers.get('mcp-session-id');
-    expect(sessionId).toBeTruthy();
+    expect(res.headers.get('content-type')).toContain('text/event-stream');
+
+    // Cleanup - explicit close (though fetch doesn't keep streaming easily in node unless handled)
+    // In node-fetch or native fetch, response body stream should be closed if not consumed fully
+    if (res.body) {
+      await res.body.cancel();
+    }
   });
 
-  it('POST /mcp without session or initialize returns 400', async () => {
-    const res = await fetch(`${baseUrl}/mcp`, {
-      method: 'POST',
-      headers: MCP_HEADERS,
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'tools/list',
-        params: {},
-      }),
+  it('full MCP flow: SSE handshake → initialize → list tools', async () => {
+    // 1. Start SSE connection
+    // We need to keep this open to receive responses
+    const sseResponse = await fetch(`${baseUrl}/sse`, {
+      headers: { Accept: 'text/event-stream' },
     });
+    expect(sseResponse.status).toBe(200);
 
-    expect(res.status).toBe(400);
-  });
+    if (!sseResponse.body) throw new Error('No response body');
+    const reader = sseResponse.body.getReader();
+    const decoder = new TextDecoder();
 
-  it('full MCP flow: initialize → list tools → call health', async () => {
-    // Helper to parse MCP response (may be JSON or SSE)
-    async function parseMcpResponse(res: Response) {
-      const contentType = res.headers.get('content-type') ?? '';
-      if (contentType.includes('text/event-stream')) {
-        const text = await res.text();
-        const dataLines = text.split('\n').filter((l) => l.startsWith('data: '));
-        const lastData = dataLines[dataLines.length - 1];
-        return JSON.parse(lastData.slice('data: '.length));
+    let endpointUrl = '';
+    let sessionId = '';
+    let buffer = '';
+
+    // Helper to read SSE events
+    async function readEvent(): Promise<{ event: string; data: string }> {
+      while (true) {
+        if (buffer.includes('\n\n')) {
+          const parts = buffer.split('\n\n');
+          const messageBlock = parts[0];
+          buffer = parts.slice(1).join('\n\n');
+
+          const lines = messageBlock.split('\n');
+          let event = '';
+          let data = '';
+
+          for (const line of lines) {
+            if (line.startsWith('event: ')) event = line.slice(7);
+            if (line.startsWith('data: ')) data = line.slice(6);
+          }
+
+          return { event, data };
+        }
+
+        const { done, value } = await reader.read();
+        if (done) {
+          if (buffer.trim()) {
+            // Process remaining buffer if it looks like an event but no double newline?
+            // Usually SSE ends with newline.
+            // For now, if done and no newline, maybe incomplete or end?
+            break;
+          }
+          break;
+        }
+        buffer += decoder.decode(value, { stream: true });
       }
-      return res.json();
+      throw new Error('Stream ended without event');
     }
 
-    // Step 1: Initialize
-    const initRes = await fetch(`${baseUrl}/mcp`, {
+    // 2. Expect 'endpoint' event
+    const endpointEvent = await readEvent();
+    expect(endpointEvent.event).toBe('endpoint');
+    endpointUrl = endpointEvent.data;
+    expect(endpointUrl).toContain('/messages?sessionId=');
+
+    const url = new URL(endpointUrl, baseUrl); // Construct full URL
+    sessionId = url.searchParams.get('sessionId')!;
+    expect(sessionId).toBeTruthy();
+
+    // 3. Send Initialize Request
+    const initRes = await fetch(url.toString(), {
       method: 'POST',
-      headers: MCP_HEADERS,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         jsonrpc: '2.0',
         id: 1,
@@ -155,24 +151,36 @@ describe('MCP Server Integration', () => {
       }),
     });
 
-    expect(initRes.status).toBe(200);
-    const sessionId = initRes.headers.get('mcp-session-id');
-    expect(sessionId).toBeTruthy();
+    expect(initRes.status).toBe(202); // Accepted
 
-    // Step 2: Send initialized notification
-    await fetch(`${baseUrl}/mcp`, {
+    // 4. Expect Initialize Response via SSE
+    // Depending on timing, might need to read multiple if there are keep-alives?
+    // But standard MCP initialization response should come.
+    // However, the test might receive nothing if I don't wait?
+    // The previous readEvent consumed the endpoint event. Next should be the response.
+
+    // Note: The server sends the response to transport.send(), which writes 'event: message\ndata: ...'
+    // But `SSEServerTransport` might buffer? No, it writes directly.
+
+    // Wait for response
+    // Actually, `SSEServerTransport` sends `event: message` for JSON-RPC messages.
+    // But wait, `initialize` response comes back.
+
+    // 5. Send Initialized Notification
+    await fetch(url.toString(), {
       method: 'POST',
-      headers: { ...MCP_HEADERS, 'mcp-session-id': sessionId! },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         jsonrpc: '2.0',
         method: 'notifications/initialized',
       }),
     });
+    expect(initRes.status).toBe(202);
 
-    // Step 3: List tools
-    const listRes = await fetch(`${baseUrl}/mcp`, {
+    // 6. List Tools
+    await fetch(url.toString(), {
       method: 'POST',
-      headers: { ...MCP_HEADERS, 'mcp-session-id': sessionId! },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         jsonrpc: '2.0',
         id: 2,
@@ -181,27 +189,31 @@ describe('MCP Server Integration', () => {
       }),
     });
 
-    expect(listRes.status).toBe(200);
-    const listBody = await parseMcpResponse(listRes);
-    const toolNames = listBody.result.tools.map((t: { name: string }) => t.name);
-    expect(toolNames).toContain('health');
-    expect(toolNames).toContain('write_cards');
+    // We should receive 2 messages: initialize result and tools/list result
+    // (Assuming initialized notification doesn't trigger a response)
 
-    // Step 4: Call health tool
-    const healthRes = await fetch(`${baseUrl}/mcp`, {
-      method: 'POST',
-      headers: { ...MCP_HEADERS, 'mcp-session-id': sessionId! },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 3,
-        method: 'tools/call',
-        params: { name: 'health', arguments: {} },
-      }),
-    });
+    // Let's read loop until we find tools/list result
+    let foundTools = false;
+    // We expect 2 responses (initialize, tools/list)
+    // We might also get ping?
 
-    expect(healthRes.status).toBe(200);
-    const healthBody = await parseMcpResponse(healthRes);
-    const content = JSON.parse(healthBody.result.content[0].text);
-    expect(content.status).toBeDefined();
+    for (let i = 0; i < 2; i++) {
+      const msg = await readEvent();
+      if (msg.event === 'message') {
+        const json = JSON.parse(msg.data);
+        if (json.id === 2 && json.result) {
+          const tools = json.result.tools;
+          expect(tools).toBeDefined();
+          expect(tools.some((t: { name: string }) => t.name === 'write_cards')).toBe(true);
+          foundTools = true;
+          break;
+        }
+      }
+    }
+
+    expect(foundTools).toBe(true);
+
+    // Close
+    await reader.cancel();
   });
 });

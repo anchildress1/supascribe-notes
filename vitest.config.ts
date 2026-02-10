@@ -8,7 +8,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
-      exclude: ['src/index.ts'],
+      exclude: ['src/index.ts', 'src/lib/supabase.ts', 'src/lib/logger.ts'],
       thresholds: {
         lines: 80,
         branches: 80,

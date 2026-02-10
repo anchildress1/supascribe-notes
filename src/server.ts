@@ -1,16 +1,10 @@
-import { randomUUID } from 'node:crypto';
 import express from 'express';
-import rateLimit from 'express-rate-limit';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import * as z from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Config } from './config.js';
 import { createSupabaseClient } from './lib/supabase.js';
-import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
-import { mcpAuthMetadataRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
-import { SupabaseTokenVerifier } from './lib/auth-provider.js';
 import { CardInputSchema } from './schemas/card.js';
 import type { WriteCardsInput } from './schemas/card.js';
 import { handleHealth } from './tools/health.js';
@@ -24,7 +18,7 @@ export function createApp(config: Config): express.Express {
   const app = express();
   app.set('trust proxy', 1);
 
-  // Health check: defined BEFORE middleware to bypass auth/logging/rate-limiting
+  // Health check
   app.get('/status', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
@@ -34,78 +28,65 @@ export function createApp(config: Config): express.Express {
   // Request logging middleware
   app.use(requestLogger);
 
-  // Rate limiter: 60 requests per minute per IP (generous for single-user tool)
-  const limiter = rateLimit({
-    windowMs: 60 * 1000,
-    max: 60,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: 'Too many requests, please try again later' },
-  });
+  // Store active transports
+  const transports = new Map<string, SSEServerTransport>();
 
-  app.use(limiter);
-  // OAuth Metadata and Auth Middleware
-  const authBase = `${config.supabaseUrl}/auth/v1`;
-  const verifier = new SupabaseTokenVerifier(supabase);
+  // SSE endpoint
+  app.get('/sse', async (req, res) => {
+    logger.info('New SSE connection attempt');
 
-  app.use(
-    mcpAuthMetadataRouter({
-      oauthMetadata: {
-        issuer: authBase,
-        authorization_endpoint: new URL(`${authBase}/authorize`).toString(),
-        token_endpoint: new URL(`${authBase}/token?grant_type=password`).toString(),
-        jwks_uri: new URL(`${authBase}/.well-known/jwks.json`).toString(),
-        response_types_supported: ['code', 'token'],
-        token_endpoint_auth_methods_supported: ['client_secret_post'],
-        response_modes_supported: ['query'],
-        grant_types_supported: ['authorization_code', 'refresh_token'],
-      },
-      resourceServerUrl: new URL(config.publicUrl),
-      scopesSupported: [],
-    }),
-  );
+    // Create a new transport for this connection
+    // The endpoint URL will be where clients send messages
+    const transport = new SSEServerTransport('/messages', res);
+    const server = createMcpServer(supabase);
 
-  app.use(requireBearerAuth({ verifier }));
+    try {
+      // Connect first to ensure everything is set up
+      await server.connect(transport);
 
-  // Session management for MCP transports
-  const transports = new Map<string, StreamableHTTPServerTransport>();
-
-  app.post('/mcp', async (req, res) => {
-    const sessionId = req.headers['mcp-session-id'] as string | undefined;
-
-    // Reuse existing transport for established sessions
-    if (sessionId && transports.has(sessionId)) {
-      const transport = transports.get(sessionId)!;
-      await transport.handleRequest(req, res, req.body);
-      return;
-    }
-
-    // Create new transport for initialization requests
-    if (!sessionId && isInitializeRequest(req.body)) {
-      const transport: StreamableHTTPServerTransport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
-        onsessioninitialized: (sid: string) => {
-          transports.set(sid, transport);
-          logger.debug({ sid }, 'MCP session initialized');
-        },
-      });
+      const sessionId = transport.sessionId;
+      transports.set(sessionId, transport);
+      logger.info({ sessionId }, 'SSE session initialized');
 
       transport.onclose = () => {
-        const sid = [...transports.entries()].find(([_, t]) => t === transport)?.[0];
-        if (sid) {
-          transports.delete(sid);
-          logger.debug({ sid }, 'MCP session closed');
-        }
+        transports.delete(sessionId);
+        logger.info({ sessionId }, 'SSE session closed');
       };
 
-      const server = createMcpServer(supabase);
-      await server.connect(transport);
-      await transport.handleRequest(req, res, req.body);
+      // Start the transport - this keeps the connection open
+      await transport.start();
+    } catch (error) {
+      logger.error({ error }, 'Failed to initialize SSE session');
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to initialize session' });
+      }
+    }
+  });
+
+  // Messages endpoint
+  app.post('/messages', async (req, res) => {
+    const sessionId = req.query.sessionId as string;
+
+    if (!sessionId) {
+      res.status(400).send('Missing sessionId query parameter');
       return;
     }
 
-    logger.warn('Invalid MCP request: missing session ID or not an init request');
-    res.status(400).json({ error: 'Invalid request: expected initialization or valid session' });
+    const transport = transports.get(sessionId);
+    if (!transport) {
+      logger.warn({ sessionId }, 'Message received for unknown session');
+      res.status(404).send('Session not found');
+      return;
+    }
+
+    try {
+      await transport.handlePostMessage(req, res, req.body);
+    } catch (error) {
+      logger.error({ error, sessionId }, 'Error handling message');
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    }
   });
 
   return app;

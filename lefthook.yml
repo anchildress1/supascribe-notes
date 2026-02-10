@@ -2,3 +2,20 @@ commit-msg:
   commands:
     commitlint:
       run: npx --no-install commitlint --edit {1}
+
+pre-commit:
+  parallel: false
+  commands:
+    check-format:
+      glob: '*.{js,ts,json,md,yml,yaml}'
+      run: npx prettier --check {staged_files}
+    lint:
+      glob: '*.{js,ts}'
+      run: npx eslint {staged_files}
+    audit-fix:
+      run: npm audit fix || true
+
+pre-push:
+  commands:
+    all-tests:
+      run: npm test

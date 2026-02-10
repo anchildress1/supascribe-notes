@@ -3,6 +3,10 @@
 dev:
 	npm run dev
 
+install:
+	npm install
+	npx lefthook install
+
 lint:
 	npx eslint .
 	npx prettier --check .

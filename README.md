@@ -23,14 +23,8 @@ A TypeScript MCP server that writes index cards to Supabase, deployed on Google 
 ## Setup
 
 ```bash
-# Install dependencies
-npm install
-
-# Copy env template and fill in values
-cp .env.example .env
-
-# Install git hooks
-npx lefthook install
+# Install dependencies and git hooks
+make install
 ```
 
 ### Environment Variables
@@ -62,18 +56,16 @@ psql < supabase/migrations/003_create_generation_runs.sql
 ```bash
 # Start dev server with hot reload
 make dev
-# OR
-npm run dev
 
 # Run tests
-npm test
+make test
 
 # Run tests with coverage
-npm run test:coverage
+make test-coverage
 
 # Lint and format
-npm run lint
-npm run format
+make lint
+make format
 
 # Run all CI checks locally
 make ai-checks
@@ -111,6 +103,35 @@ curl "$SERVICE_URL/status"
 
 # OAuth Discovery
 curl "$SERVICE_URL/.well-known/oauth-authorization-server"
+
+# Example: Write a card (Requires valid session)
+# First, perform initialization as above inside an MCP client.
+# Then, the client can call tools. Here is the JSON-RPC payload structure
+# that would be sent to the /messages endpoint for the write_cards tool:
+#
+# POST /messages?sessionId=<session-id>
+# {
+#   "jsonrpc": "2.0",
+#   "id": 2,
+#   "method": "tools/call",
+#   "params": {
+#     "name": "write_cards",
+#     "arguments": {
+#       "cards": [
+#         {
+#           "title": "Quantum Entanglement",
+#           "blurb": "Spooky action at a distance",
+#           "fact": "Two particles remain connected even when separated by vast distances.",
+#           "url": "https://en.wikipedia.org/wiki/Quantum_entanglement",
+#           "category": "Physics",
+#           "signal": 5,
+#           "tags": { "lvl0": ["Science"], "lvl1": ["Quantum Physics"] },
+#           "projects": ["research-2025"]
+#         }
+#       ]
+#     }
+#   }
+# }
 ```
 
 To fully test the MCP functionality, configure your MCP client (like Claude Desktop) to connect to the SSE endpoint:

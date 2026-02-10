@@ -12,12 +12,27 @@ import { createAuthMiddleware } from './middleware/auth.js';
 import { CardInputSchema } from './schemas/card.js';
 import { handleHealth } from './tools/health.js';
 import { handleWriteCards } from './tools/write-cards.js';
+import { logger } from './lib/logger.js';
 
 export function createApp(config: Config): express.Express {
   const supabase = createSupabaseClient(config.supabaseUrl, config.supabaseServiceRoleKey);
 
   const app = express();
   app.use(express.json());
+
+  // Request logging middleware
+  app.use((req, res, next) => {
+    logger.info({ method: req.method, url: req.url }, 'Incoming request');
+    const start = Date.now();
+    res.on('finish', () => {
+      const duration = Date.now() - start;
+      logger.info(
+        { method: req.method, url: req.url, status: res.statusCode, duration },
+        'Request completed',
+      );
+    });
+    next();
+  });
 
   // Rate limiter: 60 requests per minute per IP (generous for single-user tool)
   const limiter = rateLimit({
@@ -50,12 +65,16 @@ export function createApp(config: Config): express.Express {
         sessionIdGenerator: () => randomUUID(),
         onsessioninitialized: (sid: string) => {
           transports.set(sid, transport);
+          logger.debug({ sid }, 'MCP session initialized');
         },
       });
 
       transport.onclose = () => {
         const sid = [...transports.entries()].find(([_, t]) => t === transport)?.[0];
-        if (sid) transports.delete(sid);
+        if (sid) {
+          transports.delete(sid);
+          logger.debug({ sid }, 'MCP session closed');
+        }
       };
 
       const server = createMcpServer(supabase);
@@ -64,6 +83,7 @@ export function createApp(config: Config): express.Express {
       return;
     }
 
+    logger.warn('Invalid MCP request: missing session ID or not an init request');
     res.status(400).json({ error: 'Invalid request: expected initialization or valid session' });
   });
 

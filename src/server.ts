@@ -14,11 +14,22 @@ import { requestLogger } from './middleware/request-logger.js';
 import { SupabaseTokenVerifier } from './lib/auth-provider.js';
 import { createAuthMiddleware } from './middleware/auth.js';
 
+import { rateLimit } from 'express-rate-limit';
+
 export function createApp(config: Config): express.Express {
   const supabase = createSupabaseClient(config.supabaseUrl, config.supabaseServiceRoleKey);
 
   const app = express();
   app.set('trust proxy', 1);
+
+  // Rate Limiting
+  const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    limit: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  });
+  app.use(limiter);
 
   // Health check
   app.get('/status', (_req, res) => {
@@ -31,6 +42,47 @@ export function createApp(config: Config): express.Express {
   app.use(requestLogger);
 
   const authVerifier = new SupabaseTokenVerifier(supabase);
+
+  // Root endpoint - User facing help page
+  app.get('/', (req, res) => {
+    res.type('text/html').send(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Supabase MCP Server</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+              max-width: 600px;
+              margin: 40px auto;
+              padding: 20px;
+              text-align: center;
+              line-height: 1.6;
+              color: #333;
+            }
+            h1 {
+              font-size: 24px;
+              margin-bottom: 20px;
+            }
+            p {
+              margin-bottom: 10px;
+            }
+            .logo {
+              font-size: 48px;
+              margin-bottom: 20px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="logo">🔌</div>
+          <h1>Supabase MCP Server</h1>
+          <p>This is a Model Context Protocol (MCP) server for Supabase.</p>
+          <p>To use this server, please connect it to an MCP Client (like ChatGPT or Claude Desktop).</p>
+        </body>
+      </html>
+    `);
+  });
 
   // OAuth Discovery Endpoint
   app.get('/.well-known/oauth-authorization-server', (req, res) => {
@@ -47,8 +99,18 @@ export function createApp(config: Config): express.Express {
     });
   });
 
+  // OAuth Protected Resource Metadata
+  app.get('/.well-known/oauth-protected-resource', (_req, res) => {
+    res.json({
+      resource: config.publicUrl,
+      authorization_servers: [`${config.supabaseUrl}/auth/v1`],
+      scopes_supported: [],
+      bearer_methods_supported: ['header'],
+    });
+  });
+
   // Auth Middleware
-  const authenticate = createAuthMiddleware(authVerifier);
+  const authenticate = createAuthMiddleware(authVerifier, config.publicUrl);
 
   // Store active transports
   const transports = new Map<string, SSEServerTransport>();

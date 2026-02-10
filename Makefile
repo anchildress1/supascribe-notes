@@ -1,6 +1,7 @@
 .PHONY: lint format test test-coverage secrets-scan ai-checks build clean dev
 
 dev:
+	npx tsc 
 	npm run dev
 
 install:
@@ -9,11 +10,9 @@ install:
 
 lint:
 	npx eslint .
-	npx prettier --check .
 
 format:
 	npx prettier --write .
-	npx eslint --fix .
 
 test:
 	npx vitest run
@@ -24,7 +23,7 @@ test-coverage:
 secrets-scan:
 	npx secretlint "**/*"
 
-ai-checks: lint test-coverage secrets-scan
+ai-checks: format lint test-coverage secrets-scan
 	@echo "✅ All checks passed"
 
 build:

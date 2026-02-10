@@ -96,13 +96,19 @@ bash deploy.sh
 After deployment, verify the service is running:
 
 ```bash
-SERVICE_URL="https://supascribe-notes-mcp-u36ut3r63a-ue.a.run.app"
+SERVICE_URL="https://supascribe-notes-mcp-800441415595.us-east1.run.app"
 
 # HTTP status check
 curl "$SERVICE_URL/status"
 
 # OAuth Discovery
 curl "$SERVICE_URL/.well-known/oauth-authorization-server"
+
+# OAuth Protected Resource Metadata
+curl "$SERVICE_URL/.well-known/oauth-protected-resource"
+
+# SSE Endpoint connection check
+curl -N "$SERVICE_URL/sse"
 
 # Example: Write a card (Requires valid session)
 # First, perform initialization as above inside an MCP client.

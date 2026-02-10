@@ -77,6 +77,15 @@ describe('MCP Server Integration', () => {
     expect(body.status).toBe('ok');
   });
 
+  it('GET / returns 200 and HTML help page', async () => {
+    const res = await fetch(`${baseUrl}/`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/html');
+    const text = await res.text();
+    expect(text).toContain('Supabase MCP Server');
+    expect(text).toContain('<!DOCTYPE html>');
+  });
+
   it('GET /sse returns 401 without auth', async () => {
     const res = await fetch(`${baseUrl}/sse`, {
       headers: { Accept: 'text/event-stream' },

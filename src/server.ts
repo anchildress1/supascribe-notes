@@ -13,6 +13,7 @@ import { CardInputSchema } from './schemas/card.js';
 import { handleHealth } from './tools/health.js';
 import { handleWriteCards } from './tools/write-cards.js';
 import { logger } from './lib/logger.js';
+import { requestLogger } from './middleware/request-logger.js';
 
 export function createApp(config: Config): express.Express {
   const supabase = createSupabaseClient(config.supabaseUrl, config.supabaseServiceRoleKey);
@@ -21,18 +22,7 @@ export function createApp(config: Config): express.Express {
   app.use(express.json());
 
   // Request logging middleware
-  app.use((req, res, next) => {
-    logger.info({ method: req.method, url: req.url }, 'Incoming request');
-    const start = Date.now();
-    res.on('finish', () => {
-      const duration = Date.now() - start;
-      logger.info(
-        { method: req.method, url: req.url, status: res.statusCode, duration },
-        'Request completed',
-      );
-    });
-    next();
-  });
+  app.use(requestLogger);
 
   // Rate limiter: 60 requests per minute per IP (generous for single-user tool)
   const limiter = rateLimit({

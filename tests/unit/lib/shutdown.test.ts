@@ -13,7 +13,6 @@ vi.mock('../../../src/lib/logger.js', () => ({
 describe('createShutdownHandler', () => {
     let mockServer: Server;
     let exitSpy: any;
-    let timeoutSpy: any;
 
     beforeEach(() => {
         mockServer = {
@@ -24,7 +23,6 @@ describe('createShutdownHandler', () => {
             return undefined as never;
         });
 
-        timeoutSpy = vi.spyOn(global, 'setTimeout');
         vi.useFakeTimers();
     });
 

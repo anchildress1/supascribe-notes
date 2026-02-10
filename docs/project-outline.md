@@ -14,8 +14,9 @@ DELIVER
 
 AUTH
 
-- Implement request authentication for all tool calls.
-- Use env-based configuration (token or IAM). Document exact setup.
+- Implement OAuth 2.1 authorization code flow.
+- Verify Supabase Auth JWTs in middleware using `src/middleware/auth.ts`.
+- Expose OAuth discovery metadata at `/.well-known/oauth-authorization-server`.
 
 SUPABASE
 

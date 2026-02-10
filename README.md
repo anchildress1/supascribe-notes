@@ -61,6 +61,8 @@ psql < supabase/migrations/003_create_generation_runs.sql
 
 ```bash
 # Start dev server with hot reload
+make dev
+# OR
 npm run dev
 
 # Run tests
@@ -99,30 +101,22 @@ bash deploy.sh
 
 ## Smoke Tests
 
-After deployment, verify the service:
+After deployment, verify the service is running:
 
 ```bash
 SERVICE_URL="https://supascribe-notes-mcp-u36ut3r63a-ue.a.run.app"
-TOKEN="your-mcp-auth-token"
 
-# HTTP status check (non-MCP)
+# HTTP status check
 curl "$SERVICE_URL/status"
 
-# MCP initialize (must include Accept header for SSE transport)
-curl -X POST "$SERVICE_URL/mcp" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "jsonrpc": "2.0",
-    "id": 1,
-    "method": "initialize",
-    "params": {
-      "protocolVersion": "2025-03-26",
-      "capabilities": {},
-      "clientInfo": {"name": "smoke-test", "version": "1.0.0"}
-    }
-  }'
+# OAuth Discovery
+curl "$SERVICE_URL/.well-known/oauth-authorization-server"
 ```
+
+To fully test the MCP functionality, configure your MCP client (like Claude Desktop) to connect to the SSE endpoint:
+
+- **URL**: `$SERVICE_URL/sse`
+- **Auth**: Use the standard OAuth 2.1 flow supported by your client, pointing to your Supabase project's auth endpoints.
 
 ## Card Shape
 
@@ -151,4 +145,4 @@ curl -X POST "$SERVICE_URL/mcp" \
 
 ## License
 
-MIT
+PolyForm Shield 1.0.0

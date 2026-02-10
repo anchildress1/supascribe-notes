@@ -9,6 +9,10 @@ A TypeScript MCP server that writes index cards to Supabase, deployed on Google 
 | `health`      | Check server status and Supabase connectivity         |
 | `write_cards` | Validate and upsert index cards with revision history |
 
+## Architecture
+
+![Sequence Diagram](docs/images/architecture-sequence-diagram.png)
+
 ## Prerequisites
 
 - Node.js 22+
@@ -35,8 +39,19 @@ npx lefthook install
 | --------------------------- | -------- | ----------------------------- |
 | `SUPABASE_URL`              | ✅       | Supabase project API URL      |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅       | Supabase service role key     |
-| `MCP_AUTH_TOKEN`            | ✅       | Bearer token for request auth |
+| `MCP_AUTH_TOKEN`            | ✅       | System token for legacy auth  |
 | `PORT`                      | ❌       | Server port (default: `8080`) |
+| `PUBLIC_URL`                | ❌       | Public URL for OAuth config   |
+
+## Authentication
+
+This server supports two methods of authentication:
+
+1.  **OAuth 2.0 (Preferred)**: The server verifies standard Supabase Auth JWTs. It exposes OAuth metadata at `/.well-known/oauth-authorization-server` for MCP clients to discover.
+2.  **System Token**: A static `MCP_AUTH_TOKEN` can be used for server-to-server communication or simple clients.
+
+> **Note**: You can generate a secure `MCP_AUTH_TOKEN` using:
+> `openssl rand -base64 32`
 
 ## Database Schema
 
@@ -83,7 +98,7 @@ docker run -p 8080:8080 --env-file .env supascribe-notes-mcp
 
 ```bash
 # Set your GCP project
-gcloud config set project unstable-anchildress1
+gcloud config set project anchildress1-unstable
 
 # Deploy
 bash deploy.sh
@@ -94,13 +109,13 @@ bash deploy.sh
 After deployment, verify the service:
 
 ```bash
-SERVICE_URL="https://your-service-url"
+SERVICE_URL="https://supascribe-notes-mcp-u36ut3r63a-ue.a.run.app"
 TOKEN="your-mcp-auth-token"
 
-# HTTP health check (non-MCP)
-curl -H "Authorization: Bearer $TOKEN" "$SERVICE_URL/healthz"
+# HTTP status check (non-MCP)
+curl "$SERVICE_URL/status"
 
-# MCP initialize
+# MCP initialize (must include Accept header for SSE transport)
 curl -X POST "$SERVICE_URL/mcp" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \

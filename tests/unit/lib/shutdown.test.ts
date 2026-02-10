@@ -4,56 +4,58 @@ import { createShutdownHandler } from '../../../src/lib/shutdown.js';
 import { logger } from '../../../src/lib/logger.js';
 
 vi.mock('../../../src/lib/logger.js', () => ({
-    logger: {
-        info: vi.fn(),
-        error: vi.fn(),
-    },
+  logger: {
+    info: vi.fn(),
+    error: vi.fn(),
+  },
 }));
 
 describe('createShutdownHandler', () => {
-    let mockServer: Server;
-    let exitSpy: any;
+  let mockServer: Server;
+  let exitSpy: ReturnType<typeof vi.spyOn>;
 
-    beforeEach(() => {
-        mockServer = {
-            close: vi.fn((cb) => cb()),
-        } as unknown as Server;
+  beforeEach(() => {
+    mockServer = {
+      close: vi.fn((cb) => cb()),
+    } as unknown as Server;
 
-        exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
-            return undefined as never;
-        });
-
-        vi.useFakeTimers();
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+      return undefined as never;
     });
 
-    afterEach(() => {
-        vi.restoreAllMocks();
-        vi.useRealTimers();
-    });
+    vi.useFakeTimers();
+  });
 
-    it('should close server and exit on signal', () => {
-        const handler = createShutdownHandler(mockServer);
-        handler('SIGTERM');
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
 
-        expect(logger.info).toHaveBeenCalledWith({ signal: 'SIGTERM' }, 'Shutting down...');
-        expect(mockServer.close).toHaveBeenCalled();
-        expect(logger.info).toHaveBeenCalledWith('Server closed');
-        expect(exitSpy).toHaveBeenCalledWith(0);
-    });
+  it('should close server and exit on signal', () => {
+    const handler = createShutdownHandler(mockServer);
+    handler('SIGTERM');
 
-    it('should forcefully exit after timeout if server does not close', () => {
-        // Mock server.close to NOT call its callback
-        mockServer.close = vi.fn();
+    expect(logger.info).toHaveBeenCalledWith({ signal: 'SIGTERM' }, 'Shutting down...');
+    expect(mockServer.close).toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith('Server closed');
+    expect(exitSpy).toHaveBeenCalledWith(0);
+  });
 
-        const handler = createShutdownHandler(mockServer);
-        handler('SIGTERM');
+  it('should forcefully exit after timeout if server does not close', () => {
+    // Mock server.close to NOT call its callback
+    mockServer.close = vi.fn();
 
-        expect(exitSpy).not.toHaveBeenCalled();
+    const handler = createShutdownHandler(mockServer);
+    handler('SIGTERM');
 
-        // Fast-forward time
-        vi.advanceTimersByTime(10000);
+    expect(exitSpy).not.toHaveBeenCalled();
 
-        expect(logger.error).toHaveBeenCalledWith('Could not close connections in time, forcefully shutting down');
-        expect(exitSpy).toHaveBeenCalledWith(1);
-    });
+    // Fast-forward time
+    vi.advanceTimersByTime(10000);
+
+    expect(logger.error).toHaveBeenCalledWith(
+      'Could not close connections in time, forcefully shutting down',
+    );
+    expect(exitSpy).toHaveBeenCalledWith(1);
+  });
 });

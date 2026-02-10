@@ -1,3 +1,8 @@
+import type { Config } from './config.js';
+import { loadConfig } from './config.js';
+import { createApp } from './server.js';
+import { logger } from './lib/logger.js';
+import { createServer } from 'node:http';
 import { createShutdownHandler } from './lib/shutdown.js';
 
 const config: Config = loadConfig();

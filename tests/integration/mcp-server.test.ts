@@ -7,6 +7,23 @@ import type { Config } from '../../src/config.js';
 // Mock Supabase client
 vi.mock('../../src/lib/supabase.js', () => ({
   createSupabaseClient: vi.fn().mockReturnValue({
+    auth: {
+      getUser: vi.fn().mockImplementation(async (token) => {
+        if (token === 'valid-token') {
+          return {
+            data: {
+              user: {
+                id: 'test-user',
+                email: 'test@example.com',
+                role: 'authenticated',
+              },
+            },
+            error: null,
+          };
+        }
+        return { data: { user: null }, error: { message: 'Invalid token' } };
+      }),
+    },
     from: vi.fn().mockImplementation((table: string) => {
       if (table === 'cards') {
         return {
@@ -29,14 +46,14 @@ vi.mock('../../src/lib/supabase.js', () => ({
 const testConfig: Config = {
   supabaseUrl: 'http://localhost:54321',
   supabaseServiceRoleKey: 'test-key',
-  mcpAuthToken: 'test-auth-token',
   port: 0,
+  publicUrl: 'http://localhost:0',
 };
 
 const MCP_HEADERS = {
   'Content-Type': 'application/json',
   Accept: 'application/json, text/event-stream',
-  Authorization: 'Bearer test-auth-token',
+  Authorization: 'Bearer valid-token',
 };
 
 describe('MCP Server Integration', () => {
@@ -56,8 +73,8 @@ describe('MCP Server Integration', () => {
     server?.close();
   });
 
-  it('GET /healthz returns 200 ok', async () => {
-    const res = await fetch(`${baseUrl}/healthz`, {
+  it('GET /status returns 200 ok', async () => {
+    const res = await fetch(`${baseUrl}/status`, {
       headers: { Authorization: 'Bearer test-auth-token' },
     });
     expect(res.status).toBe(200);
@@ -66,7 +83,8 @@ describe('MCP Server Integration', () => {
   });
 
   it('returns 401 without auth token', async () => {
-    const res = await fetch(`${baseUrl}/healthz`);
+    // /status is public, so we use /mcp or a non-existent route that falls through to auth
+    const res = await fetch(`${baseUrl}/mcp`, { method: 'POST' });
     expect(res.status).toBe(401);
   });
 

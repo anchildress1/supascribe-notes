@@ -8,8 +8,11 @@ import * as z from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Config } from './config.js';
 import { createSupabaseClient } from './lib/supabase.js';
-import { createAuthMiddleware } from './middleware/auth.js';
+import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
+import { mcpAuthMetadataRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
+import { SupabaseTokenVerifier } from './lib/auth-provider.js';
 import { CardInputSchema } from './schemas/card.js';
+import type { WriteCardsInput } from './schemas/card.js';
 import { handleHealth } from './tools/health.js';
 import { handleWriteCards } from './tools/write-cards.js';
 import { logger } from './lib/logger.js';
@@ -19,6 +22,13 @@ export function createApp(config: Config): express.Express {
   const supabase = createSupabaseClient(config.supabaseUrl, config.supabaseServiceRoleKey);
 
   const app = express();
+  app.set('trust proxy', 1);
+
+  // Health check: defined BEFORE middleware to bypass auth/logging/rate-limiting
+  app.get('/status', (_req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
   app.use(express.json());
 
   // Request logging middleware
@@ -34,7 +44,28 @@ export function createApp(config: Config): express.Express {
   });
 
   app.use(limiter);
-  app.use(createAuthMiddleware(config.mcpAuthToken));
+  // OAuth Metadata and Auth Middleware
+  const authBase = `${config.supabaseUrl}/auth/v1`;
+  const verifier = new SupabaseTokenVerifier(supabase);
+
+  app.use(
+    mcpAuthMetadataRouter({
+      oauthMetadata: {
+        issuer: authBase,
+        authorization_endpoint: new URL(`${authBase}/authorize`).toString(),
+        token_endpoint: new URL(`${authBase}/token?grant_type=password`).toString(),
+        jwks_uri: new URL(`${authBase}/.well-known/jwks.json`).toString(),
+        response_types_supported: ['code', 'token'],
+        token_endpoint_auth_methods_supported: ['client_secret_post'],
+        response_modes_supported: ['query'],
+        grant_types_supported: ['authorization_code', 'refresh_token'],
+      },
+      resourceServerUrl: new URL(config.publicUrl),
+      scopesSupported: [],
+    }),
+  );
+
+  app.use(requireBearerAuth({ verifier }));
 
   // Session management for MCP transports
   const transports = new Map<string, StreamableHTTPServerTransport>();
@@ -77,11 +108,6 @@ export function createApp(config: Config): express.Express {
     res.status(400).json({ error: 'Invalid request: expected initialization or valid session' });
   });
 
-  // Non-MCP health endpoint for load balancers / smoke tests
-  app.get('/healthz', (_req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
-  });
-
   return app;
 }
 
@@ -101,7 +127,7 @@ function createMcpServer(supabase: SupabaseClient): McpServer {
     {
       cards: z.array(CardInputSchema).min(1).max(50),
     },
-    async ({ cards }) => handleWriteCards(supabase, cards),
+    async ({ cards }: WriteCardsInput) => handleWriteCards(supabase, cards),
   );
 
   return server;

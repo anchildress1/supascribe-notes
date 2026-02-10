@@ -11,6 +11,7 @@ import { handleHealth } from './tools/health.js';
 import { handleWriteCards } from './tools/write-cards.js';
 import { logger } from './lib/logger.js';
 import { requestLogger } from './middleware/request-logger.js';
+import { SupabaseTokenVerifier } from './lib/auth-provider.js';
 
 export function createApp(config: Config): express.Express {
   const supabase = createSupabaseClient(config.supabaseUrl, config.supabaseServiceRoleKey);
@@ -28,11 +29,52 @@ export function createApp(config: Config): express.Express {
   // Request logging middleware
   app.use(requestLogger);
 
+  const authVerifier = new SupabaseTokenVerifier(supabase);
+
+  // OAuth Discovery Endpoint
+  app.get('/.well-known/oauth-authorization-server', (req, res) => {
+    res.json({
+      issuer: `${config.supabaseUrl}/auth/v1`,
+      authorization_endpoint: `${config.supabaseUrl}/auth/v1/authorize`,
+      token_endpoint: `${config.supabaseUrl}/auth/v1/token`,
+      jwks_uri: `${config.supabaseUrl}/auth/v1/jwks`,
+      scopes_supported: [],
+      response_types_supported: ['code'],
+      grant_types_supported: ['authorization_code', 'refresh_token'],
+      token_endpoint_auth_methods_supported: ['client_secret_post'],
+      pkce_required: true,
+    });
+  });
+
+  // Auth Middleware
+  const authenticate = async (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      res.status(401).json({ error: 'Missing Authorization header' });
+      return;
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+
+    // Check OAuth Token
+    try {
+      await authVerifier.verifyAccessToken(token);
+      next();
+    } catch (error) {
+      logger.warn({ error }, 'Authentication failed');
+      res.status(401).json({ error: 'Invalid token' });
+    }
+  };
+
   // Store active transports
   const transports = new Map<string, SSEServerTransport>();
 
   // SSE endpoint
-  app.get('/sse', async (req, res) => {
+  app.get('/sse', authenticate, async (req, res) => {
     logger.info('New SSE connection attempt');
 
     // Create a new transport for this connection
@@ -64,7 +106,7 @@ export function createApp(config: Config): express.Express {
   });
 
   // Messages endpoint
-  app.post('/messages', async (req, res) => {
+  app.post('/messages', authenticate, async (req, res) => {
     const sessionId = req.query.sessionId as string;
 
     if (!sessionId) {

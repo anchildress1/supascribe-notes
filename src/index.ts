@@ -12,7 +12,6 @@ logger.info(
   {
     ...config,
     supabaseServiceRoleKey: '***',
-    mcpAuthToken: '***',
   },
   'Configuration loaded',
 );

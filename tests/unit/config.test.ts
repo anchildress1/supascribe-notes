@@ -5,7 +5,6 @@ describe('loadConfig', () => {
   beforeEach(() => {
     vi.stubEnv('SUPABASE_URL', 'http://localhost:54321');
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'test-key');
-    vi.stubEnv('MCP_AUTH_TOKEN', 'test-token');
     vi.stubEnv('PORT', '3000');
   });
 

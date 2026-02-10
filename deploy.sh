@@ -47,7 +47,6 @@ require_env() {
 
 require_env "SUPABASE_URL"
 require_env "SUPABASE_SERVICE_ROLE_KEY"
-require_env "MCP_AUTH_TOKEN"
 
 # Enable required services
 echo "Enabling required Google Cloud APIs..."
@@ -81,7 +80,7 @@ gcloud run deploy "$SERVICE_NAME" \
     --project "$PROJECT_ID" \
     --allow-unauthenticated \
     --port "$PORT" \
-    --set-env-vars "SUPABASE_URL=$SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY,MCP_AUTH_TOKEN=$MCP_AUTH_TOKEN"
+    --set-env-vars "SUPABASE_URL=$SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY"
 
 SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
     --region "$REGION" --project "$PROJECT_ID" --format 'value(status.url)')

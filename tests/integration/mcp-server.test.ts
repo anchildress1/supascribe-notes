@@ -23,6 +23,26 @@ vi.mock('../../src/lib/supabase.js', () => ({
         insert: vi.fn().mockResolvedValue({ error: null }),
       };
     }),
+    auth: {
+      getUser: vi.fn().mockImplementation(async (token) => {
+        if (token === 'test-token') {
+          return {
+            data: {
+              user: {
+                id: 'test-user',
+                email: 'test@example.com',
+                role: 'authenticated',
+              },
+            },
+            error: null,
+          };
+        }
+        return {
+          data: { user: null },
+          error: { message: 'Invalid token' },
+        };
+      }),
+    },
   }),
 }));
 
@@ -57,18 +77,46 @@ describe('MCP Server Integration', () => {
     expect(body.status).toBe('ok');
   });
 
+  it('GET /sse returns 401 without auth', async () => {
+    const res = await fetch(`${baseUrl}/sse`, {
+      headers: { Accept: 'text/event-stream' },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('GET /sse returns 401 with invalid auth', async () => {
+    const res = await fetch(`${baseUrl}/sse`, {
+      headers: {
+        Accept: 'text/event-stream',
+        Authorization: 'Bearer invalid-token',
+      },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('GET /.well-known/oauth-authorization-server returns metadata', async () => {
+    const res = await fetch(`${baseUrl}/.well-known/oauth-authorization-server`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      authorization_endpoint: string;
+      token_endpoint: string;
+    };
+    expect(body.authorization_endpoint).toBe(`${testConfig.supabaseUrl}/auth/v1/authorize`);
+    expect(body.token_endpoint).toBe(`${testConfig.supabaseUrl}/auth/v1/token`);
+  });
+
   it('GET /sse initiates SSE connection', async () => {
     const res = await fetch(`${baseUrl}/sse`, {
       headers: {
         Accept: 'text/event-stream',
+        Authorization: 'Bearer test-token',
       },
     });
 
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/event-stream');
 
-    // Cleanup - explicit close (though fetch doesn't keep streaming easily in node unless handled)
-    // In node-fetch or native fetch, response body stream should be closed if not consumed fully
+    // Cleanup
     if (res.body) {
       await res.body.cancel();
     }
@@ -76,9 +124,11 @@ describe('MCP Server Integration', () => {
 
   it('full MCP flow: SSE handshake → initialize → list tools', async () => {
     // 1. Start SSE connection
-    // We need to keep this open to receive responses
     const sseResponse = await fetch(`${baseUrl}/sse`, {
-      headers: { Accept: 'text/event-stream' },
+      headers: {
+        Accept: 'text/event-stream',
+        Authorization: 'Bearer test-token',
+      },
     });
     expect(sseResponse.status).toBe(200);
 
@@ -112,12 +162,7 @@ describe('MCP Server Integration', () => {
 
         const { done, value } = await reader.read();
         if (done) {
-          if (buffer.trim()) {
-            // Process remaining buffer if it looks like an event but no double newline?
-            // Usually SSE ends with newline.
-            // For now, if done and no newline, maybe incomplete or end?
-            break;
-          }
+          if (buffer.trim()) break;
           break;
         }
         buffer += decoder.decode(value, { stream: true });
@@ -131,14 +176,17 @@ describe('MCP Server Integration', () => {
     endpointUrl = endpointEvent.data;
     expect(endpointUrl).toContain('/messages?sessionId=');
 
-    const url = new URL(endpointUrl, baseUrl); // Construct full URL
+    const url = new URL(endpointUrl, baseUrl);
     sessionId = url.searchParams.get('sessionId')!;
     expect(sessionId).toBeTruthy();
 
     // 3. Send Initialize Request
     const initRes = await fetch(url.toString(), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test-token',
+      },
       body: JSON.stringify({
         jsonrpc: '2.0',
         id: 1,
@@ -151,36 +199,28 @@ describe('MCP Server Integration', () => {
       }),
     });
 
-    expect(initRes.status).toBe(202); // Accepted
+    expect(initRes.status).toBe(202);
 
-    // 4. Expect Initialize Response via SSE
-    // Depending on timing, might need to read multiple if there are keep-alives?
-    // But standard MCP initialization response should come.
-    // However, the test might receive nothing if I don't wait?
-    // The previous readEvent consumed the endpoint event. Next should be the response.
-
-    // Note: The server sends the response to transport.send(), which writes 'event: message\ndata: ...'
-    // But `SSEServerTransport` might buffer? No, it writes directly.
-
-    // Wait for response
-    // Actually, `SSEServerTransport` sends `event: message` for JSON-RPC messages.
-    // But wait, `initialize` response comes back.
-
-    // 5. Send Initialized Notification
+    // 4. Send Initialized Notification
     await fetch(url.toString(), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test-token',
+      },
       body: JSON.stringify({
         jsonrpc: '2.0',
         method: 'notifications/initialized',
       }),
     });
-    expect(initRes.status).toBe(202);
 
-    // 6. List Tools
+    // 5. List Tools
     await fetch(url.toString(), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test-token',
+      },
       body: JSON.stringify({
         jsonrpc: '2.0',
         id: 2,
@@ -189,14 +229,8 @@ describe('MCP Server Integration', () => {
       }),
     });
 
-    // We should receive 2 messages: initialize result and tools/list result
-    // (Assuming initialized notification doesn't trigger a response)
-
-    // Let's read loop until we find tools/list result
+    // Read events
     let foundTools = false;
-    // We expect 2 responses (initialize, tools/list)
-    // We might also get ping?
-
     for (let i = 0; i < 2; i++) {
       const msg = await readEvent();
       if (msg.event === 'message') {

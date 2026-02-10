@@ -39,19 +39,12 @@ npx lefthook install
 | --------------------------- | -------- | ----------------------------- |
 | `SUPABASE_URL`              | ✅       | Supabase project API URL      |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅       | Supabase service role key     |
-| `MCP_AUTH_TOKEN`            | ✅       | System token for legacy auth  |
 | `PORT`                      | ❌       | Server port (default: `8080`) |
 | `PUBLIC_URL`                | ❌       | Public URL for OAuth config   |
 
 ## Authentication
 
-This server supports two methods of authentication:
-
-1.  **OAuth 2.0 (Preferred)**: The server verifies standard Supabase Auth JWTs. It exposes OAuth metadata at `/.well-known/oauth-authorization-server` for MCP clients to discover.
-2.  **System Token**: A static `MCP_AUTH_TOKEN` can be used for server-to-server communication or simple clients.
-
-> **Note**: You can generate a secure `MCP_AUTH_TOKEN` using:
-> `openssl rand -base64 32`
+This server supports **OAuth 2.0**. The server verifies standard Supabase Auth JWTs. It exposes OAuth metadata at `/.well-known/oauth-authorization-server` for MCP clients to discover.
 
 ## Database Schema
 

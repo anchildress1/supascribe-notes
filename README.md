@@ -38,7 +38,7 @@ make install
 
 ## Authentication
 
-This server supports **OAuth 2.0**. The server verifies standard Supabase Auth JWTs. It exposes OAuth metadata at `/.well-known/oauth-authorization-server` for MCP clients to discover.
+This server supports **OAuth 2.0**. The server strictly requires a valid Supabase Auth JWT in the `Authorization` header (`Authorization: Bearer <token>`). Query parameters are **not** supported for authentication. It exposes OAuth metadata at `/.well-known/oauth-authorization-server` for MCP clients to discover.
 
 ## Database Schema
 
@@ -107,8 +107,8 @@ curl "$SERVICE_URL/.well-known/oauth-authorization-server"
 # OAuth Protected Resource Metadata
 curl "$SERVICE_URL/.well-known/oauth-protected-resource"
 
-# SSE Endpoint connection check
-curl -N "$SERVICE_URL/sse"
+# SSE Endpoint connection check (Requires Authorization header)
+curl -N -H "Authorization: Bearer <YOUR_TOKEN>" "$SERVICE_URL/sse"
 
 # Example: Write a card (Requires valid session)
 # First, perform initialization as above inside an MCP client.

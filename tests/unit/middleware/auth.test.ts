@@ -17,6 +17,7 @@ describe('Auth Middleware', () => {
 
     mockReq = {
       headers: {},
+      query: {},
       path: '/',
       accepts: vi.fn().mockReturnValue(false), // Default to not accepting HTML
     } as unknown as Partial<Request>;
@@ -30,6 +31,28 @@ describe('Auth Middleware', () => {
     } as unknown as Partial<Response>;
 
     next = vi.fn();
+  });
+
+  it('returns 401 if token is in query param but not header', async () => {
+    mockReq.query = { token: 'valid-token' };
+    const middleware = createAuthMiddleware(mockVerifier, publicUrl);
+
+    await middleware(mockReq as Request, mockRes as Response, next);
+
+    expect(mockRes.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('prioritizes Authorization header over query params', async () => {
+    mockReq.headers = { authorization: 'Bearer header-token' };
+    mockReq.query = { token: 'query-token' };
+    (mockVerifier.verifyAccessToken as Mock).mockResolvedValue({ userId: '123' });
+    const middleware = createAuthMiddleware(mockVerifier, publicUrl);
+
+    await middleware(mockReq as Request, mockRes as Response, next);
+
+    expect(mockVerifier.verifyAccessToken).toHaveBeenCalledWith('header-token');
+    expect(next).toHaveBeenCalled();
   });
 
   it('returns 401 HTML if missing Authorization header and accepts HTML', async () => {

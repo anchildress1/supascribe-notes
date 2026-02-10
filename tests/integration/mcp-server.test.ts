@@ -110,8 +110,8 @@ describe('MCP Server Integration', () => {
       authorization_endpoint: string;
       token_endpoint: string;
     };
-    expect(body.authorization_endpoint).toBe(`${testConfig.supabaseUrl}/auth/v1/authorize`);
-    expect(body.token_endpoint).toBe(`${testConfig.supabaseUrl}/auth/v1/token`);
+    expect(body.authorization_endpoint).toBe(`${testConfig.supabaseUrl}/auth/v1/oauth/authorize`);
+    expect(body.token_endpoint).toBe(`${testConfig.supabaseUrl}/auth/v1/oauth/token`);
   });
 
   it('GET /sse initiates SSE connection', async () => {

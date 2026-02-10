@@ -5,7 +5,14 @@ import { logger } from '../lib/logger.js';
 export function createAuthMiddleware(authVerifier: SupabaseTokenVerifier, publicUrl: string) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    let token: string | undefined;
+
+    // 1. Try Authorization header
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.replace('Bearer ', '');
+    }
+
+    if (!token) {
       // Check for browser navigation (AcceptHeader includes text/html)
       // BUT exclude /sse, which must return 401 + WWW-Authenticate for the client to handle it
       if (req.accepts('html') && !req.path.endsWith('/sse')) {
@@ -31,6 +38,7 @@ export function createAuthMiddleware(authVerifier: SupabaseTokenVerifier, public
                 }
                 p {
                   margin-bottom: 10px;
+                  font-size: 16px;
                 }
                 .logo {
                   font-size: 48px;
@@ -56,8 +64,6 @@ export function createAuthMiddleware(authVerifier: SupabaseTokenVerifier, public
       res.type('text/plain').status(401).send('Unauthorized');
       return;
     }
-
-    const token = authHeader.replace('Bearer ', '');
 
     // Check OAuth Token
     try {

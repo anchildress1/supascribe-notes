@@ -88,9 +88,9 @@ export function createApp(config: Config): express.Express {
   app.get('/.well-known/oauth-authorization-server', (req, res) => {
     res.json({
       issuer: `${config.supabaseUrl}/auth/v1`,
-      authorization_endpoint: `${config.supabaseUrl}/auth/v1/authorize`,
-      token_endpoint: `${config.supabaseUrl}/auth/v1/token`,
-      jwks_uri: `${config.supabaseUrl}/auth/v1/jwks`,
+      authorization_endpoint: `${config.supabaseUrl}/auth/v1/oauth/authorize`,
+      token_endpoint: `${config.supabaseUrl}/auth/v1/oauth/token`,
+      jwks_uri: `${config.supabaseUrl}/auth/v1/.well-known/jwks.json`,
       scopes_supported: [],
       response_types_supported: ['code'],
       grant_types_supported: ['authorization_code', 'refresh_token'],

@@ -115,7 +115,15 @@ export function renderAuthPage(config: Config): string {
                });
                
                const result = await res.json();
-               if (result.error) throw new Error(result.error);
+               if (result.error) {
+                  // Provide helpful error messages
+                  if (result.error.includes('authorization belongs to different user')) {
+                     throw new Error('This authorization request was created for a different account. Please sign out and sign in with the account you used to initiate this request.');
+                  } else if (result.error.includes('authorization not found')) {
+                     throw new Error('This authorization request has expired or was already used. Please start a new authorization request from your application.');
+                  }
+                  throw new Error(result.error);
+               }
                
                if (result.redirect_url) {
                   window.location.href = result.redirect_url;
@@ -138,7 +146,15 @@ export function renderAuthPage(config: Config): string {
                  });
                  
                  const result = await res.json();
-                 if (result.error) throw new Error(result.error);
+                 if (result.error) {
+                    // Provide helpful error messages
+                    if (result.error.includes('authorization belongs to different user')) {
+                       throw new Error('This authorization request was created for a different account. Please sign out and sign in with the account you used to initiate this request.');
+                    } else if (result.error.includes('authorization not found')) {
+                       throw new Error('This authorization request has expired or was already used. Please start a new authorization request from your application.');
+                    }
+                    throw new Error(result.error);
+                 }
                  
                  if (result.redirect_url) {
                     window.location.href = result.redirect_url;

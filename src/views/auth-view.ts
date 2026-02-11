@@ -7,7 +7,7 @@ export function renderAuthPage(config: Config): string {
       <head>
         <title>Authorize App</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.91.1"></script>
         <style>
           body { font-family: -apple-system, sans-serif; max-width: 400px; margin: 40px auto; padding: 20px; text-align: center; }
           button { width: 100%; padding: 10px; background: #24b47e; color: white; border: none; cursor: pointer; font-size: 16px; margin-top: 10px; }

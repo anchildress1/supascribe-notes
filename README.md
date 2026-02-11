@@ -96,7 +96,8 @@ bash deploy.sh
 After deployment, verify the service is running:
 
 ```bash
-SERVICE_URL="https://supascribe-notes-mcp-800441415595.us-east1.run.app"
+# Replace with your deployed Cloud Run service URL
+SERVICE_URL="https://your-service-url"
 
 # HTTP status check
 curl "$SERVICE_URL/status"

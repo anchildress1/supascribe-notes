@@ -415,10 +415,10 @@ export function createApp(config: Config): express.Express {
 
   // Messages endpoint
   app.post('/messages', authenticate, async (req, res) => {
-    const sessionId = req.query.sessionId as string;
+    const sessionId = req.query.sessionId;
 
-    if (!sessionId) {
-      res.status(400).send('Missing sessionId query parameter');
+    if (!sessionId || typeof sessionId !== 'string') {
+      res.status(400).send('Missing or invalid sessionId query parameter');
       return;
     }
 

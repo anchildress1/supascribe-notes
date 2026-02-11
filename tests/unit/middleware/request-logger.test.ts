@@ -45,9 +45,13 @@ describe('requestLogger', () => {
     expect(res.on).toHaveBeenCalledWith('finish', expect.any(Function));
 
     // Simulate finish event
-    const finishCallback = (res.on as unknown as ReturnType<typeof vi.fn>).mock.calls.find(
+    const finishCall = (res.on as unknown as ReturnType<typeof vi.fn>).mock.calls.find(
       (call) => call[0] === 'finish',
-    )?.[1];
+    );
+    if (!finishCall) {
+      throw new Error('Finish handler was not registered on res.on');
+    }
+    const finishCallback = finishCall[1] as () => void;
     finishCallback();
 
     expect(logger.info).toHaveBeenCalledWith(

@@ -12,8 +12,6 @@ pre-commit:
     lint:
       glob: '*.{js,ts}'
       run: npx eslint {staged_files}
-    audit-fix:
-      run: npm audit fix || true
 
 pre-push:
   commands:

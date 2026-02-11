@@ -18,7 +18,12 @@ describe('SupabaseTokenVerifier', () => {
   it('verifies Supabase JWT correctly', async () => {
     const verifier = new SupabaseTokenVerifier(mockSupabase);
     // Base64Url encoded payload: {"exp": 1234567890}
-    const tokenWithPayload = `header.${Buffer.from(JSON.stringify({ exp: 1234567890 })).toString('base64')}.signature`;
+    const base64Payload = Buffer.from(JSON.stringify({ exp: 1234567890 })).toString('base64');
+    const base64UrlPayload = base64Payload
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    const tokenWithPayload = `header.${base64UrlPayload}.signature`;
 
     mockGetUser.mockResolvedValue({
       data: { user: { id: 'user-123', email: 'test@example.com', role: 'authenticated' } },

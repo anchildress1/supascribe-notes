@@ -40,6 +40,26 @@ export function createApp(config: Config): express.Express {
 
   app.use(express.json());
 
+  // CORS headers for OAuth consent page
+  app.use((req, res, next) => {
+    // Allow same-origin requests and requests from the public URL
+    const origin = req.headers.origin;
+    if (origin === config.publicUrl || !origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin || '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+      res.sendStatus(204);
+      return;
+    }
+
+    next();
+  });
+
   // Request logging middleware
   app.use(requestLogger);
 

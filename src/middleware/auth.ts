@@ -25,6 +25,16 @@ export function createAuthMiddleware(authVerifier: SupabaseTokenVerifier, public
     }
 
     if (!token) {
+      // Handle OAuth Redirect misconfiguration:
+      // If the user lands on ANY protected endpoint (like /sse) with an authorization_id query param
+      // and accepts HTML, redirect them to the root / which handles the Auth UI.
+      if (req.query.authorization_id && req.accepts('html')) {
+        const redirectUrl = `/?authorization_id=${req.query.authorization_id}`;
+        logger.debug({ redirectUrl }, 'Redirecting misrouted OAuth callback to root');
+        res.redirect(302, redirectUrl);
+        return;
+      }
+
       // Check for browser navigation (AcceptHeader includes text/html)
       // BUT exclude /sse, which must return 401 + WWW-Authenticate for the client to handle it
       if (req.accepts('html') && !req.originalUrl.includes('/sse')) {

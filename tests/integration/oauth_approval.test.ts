@@ -88,6 +88,18 @@ describe('OAuth Approval Endpoint', () => {
 
         // Return mock success for Supabase calls (mock-supabase.local)
         if (urlStr.includes('mock-supabase.local')) {
+          // Handle GET request for authorization details
+          if (init?.method === 'GET' && urlStr.includes('/oauth/authorizations/')) {
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              json: async () => ({
+                user_id: 'test-user-123',
+                client_id: 'test-client',
+              }),
+            } as Response);
+          }
+
           // Simulate error if authorization_id contains 'fail-auth'
           if (urlStr.includes('fail-auth')) {
             return Promise.resolve({

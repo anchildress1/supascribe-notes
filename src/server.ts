@@ -130,7 +130,33 @@ export function createApp(config: Config): express.Express {
     }
 
     try {
-      // Use service role key to approve the authorization
+      // First, get the authorization details to find the user_id
+      const detailsResponse = await fetch(
+        `${config.supabaseUrl}/auth/v1/oauth/authorizations/${authorization_id}`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${config.supabaseServiceRoleKey}`,
+            apikey: config.supabaseAnonKey,
+          },
+        },
+      );
+
+      if (!detailsResponse.ok) {
+        const errorData = (await detailsResponse.json()) as { error?: { message: string } };
+        throw new Error(errorData.error?.message || 'Failed to get authorization details');
+      }
+
+      const authDetails = (await detailsResponse.json()) as {
+        user_id?: string;
+        [key: string]: unknown;
+      };
+
+      if (!authDetails.user_id) {
+        throw new Error('Authorization does not have an associated user');
+      }
+
+      // Now approve the authorization using service role key
       const response = await fetch(
         `${config.supabaseUrl}/auth/v1/oauth/authorizations/${authorization_id}/consent`,
         {

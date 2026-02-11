@@ -40,26 +40,6 @@ export function createApp(config: Config): express.Express {
 
   app.use(express.json());
 
-  // CORS headers for OAuth consent page
-  app.use((req, res, next) => {
-    // Allow same-origin requests and requests from the public URL
-    const origin = req.headers.origin;
-    if (origin === config.publicUrl || !origin) {
-      res.setHeader('Access-Control-Allow-Origin', origin || '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
-    }
-
-    // Handle preflight requests
-    if (req.method === 'OPTIONS') {
-      res.sendStatus(204);
-      return;
-    }
-
-    next();
-  });
-
   // Request logging middleware
   app.use(requestLogger);
 
@@ -70,7 +50,7 @@ export function createApp(config: Config): express.Express {
     const authId = req.query.authorization_id;
 
     if (authId) {
-      res.type('text/html').send(renderAuthPage());
+      res.type('text/html').send(renderAuthPage(config));
       return;
     }
 
@@ -118,119 +98,6 @@ export function createApp(config: Config): express.Express {
 
   // Store active transports
   const transports = new Map<string, SSEServerTransport>();
-
-  // OAuth Backend API for Custom UI
-  // Uses service role key to approve/deny on behalf of the user
-  app.post('/api/oauth/approve', async (req, res) => {
-    const { authorization_id } = req.body;
-
-    if (!authorization_id) {
-      res.status(400).json({ error: 'Missing authorization_id' });
-      return;
-    }
-
-    try {
-      // First, get the authorization details to find the user_id
-      const detailsResponse = await fetch(
-        `${config.supabaseUrl}/auth/v1/oauth/authorizations/${authorization_id}`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${config.supabaseServiceRoleKey}`,
-            apikey: config.supabaseAnonKey,
-          },
-        },
-      );
-
-      if (!detailsResponse.ok) {
-        const errorData = (await detailsResponse.json()) as { error?: { message: string } };
-        throw new Error(errorData.error?.message || 'Failed to get authorization details');
-      }
-
-      const authDetails = (await detailsResponse.json()) as {
-        user_id?: string;
-        [key: string]: unknown;
-      };
-
-      if (!authDetails.user_id) {
-        throw new Error('Authorization does not have an associated user');
-      }
-
-      // Now approve the authorization using service role key
-      const response = await fetch(
-        `${config.supabaseUrl}/auth/v1/oauth/authorizations/${authorization_id}/consent`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${config.supabaseServiceRoleKey}`,
-            apikey: config.supabaseAnonKey,
-          },
-          body: JSON.stringify({ action: 'approve' }),
-        },
-      );
-
-      const data = (await response.json()) as {
-        url?: string;
-        redirect_url?: string;
-        error?: { message: string };
-        msg?: string;
-      };
-
-      if (!response.ok) {
-        throw new Error(data.error?.message || data.msg || 'Failed to approve authorization');
-      }
-
-      // The API returns { url: "..." } or similar
-      res.json({ redirect_url: data.url || data.redirect_url });
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      logger.error({ err: errorMsg }, 'Failed to approve authorization');
-      res.status(500).json({ error: errorMsg });
-    }
-  });
-
-  app.post('/api/oauth/deny', async (req, res) => {
-    const { authorization_id } = req.body;
-
-    if (!authorization_id) {
-      res.status(400).json({ error: 'Missing authorization_id' });
-      return;
-    }
-
-    try {
-      // Use service role key to deny the authorization
-      const response = await fetch(
-        `${config.supabaseUrl}/auth/v1/oauth/authorizations/${authorization_id}/consent`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${config.supabaseServiceRoleKey}`,
-            apikey: config.supabaseAnonKey,
-          },
-          body: JSON.stringify({ action: 'deny' }),
-        },
-      );
-
-      const data = (await response.json()) as {
-        url?: string;
-        redirect_url?: string;
-        error?: { message: string };
-        msg?: string;
-      };
-
-      if (!response.ok) {
-        throw new Error(data.error?.message || data.msg || 'Failed to deny authorization');
-      }
-
-      res.json({ redirect_url: data.url || data.redirect_url });
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      logger.error({ err: errorMsg }, 'Failed to deny authorization');
-      res.status(500).json({ error: errorMsg });
-    }
-  });
 
   // SSE endpoint
   app.use('/sse', authenticate, async (req, res) => {

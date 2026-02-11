@@ -1,10 +1,13 @@
-export function renderAuthPage(): string {
+import type { Config } from '../config.js';
+
+export function renderAuthPage(config: Config): string {
   return `
     <!DOCTYPE html>
     <html>
       <head>
         <title>Authorize App</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
         <style>
           body { font-family: -apple-system, sans-serif; max-width: 400px; margin: 40px auto; padding: 20px; text-align: center; }
           button { width: 100%; padding: 10px; background: #24b47e; color: white; border: none; cursor: pointer; font-size: 16px; margin-top: 10px; }
@@ -26,6 +29,7 @@ export function renderAuthPage(): string {
         </div>
 
         <script>
+          const supabaseClient = supabase.createClient('${config.supabaseUrl}', '${config.supabaseAnonKey}');
           const params = new URLSearchParams(window.location.search);
           const authId = params.get('authorization_id');
 
@@ -36,7 +40,16 @@ export function renderAuthPage(): string {
                 return;
               }
               
-              // Show consent screen immediately (no auth required)
+              // Check if user has a session
+              const { data: { session } } = await supabaseClient.auth.getSession();
+              
+              if (!session) {
+                showError('You must be logged in to authorize this application. Please log in to your Supabase account first.');
+                document.getElementById('loading').style.display = 'none';
+                return;
+              }
+              
+              // Show consent screen
               document.getElementById('loading').style.display = 'none';
               document.getElementById('consent-section').style.display = 'block';
             } catch (err) {
@@ -52,53 +65,43 @@ export function renderAuthPage(): string {
               btn.innerText = 'Approving...';
               
               try {
-               const res = await fetch('/api/oauth/approve', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ authorization_id: authId })
-               });
+               const { data, error } = await supabaseClient.auth.oauth.approveAuthorization(authId);
                
-               const result = await res.json();
-               if (result.error) {
+               if (error) {
                   // Provide helpful error messages
-                  if (result.error.includes('authorization not found')) {
+                  if (error.message && error.message.includes('authorization not found')) {
                      throw new Error('This authorization request has expired or was already used. Please start a new authorization request from your application.');
                   }
-                  throw new Error(result.error);
+                  throw error;
                }
                
-               if (result.redirect_url) {
-                  window.location.href = result.redirect_url;
+               if (data?.redirect_url) {
+                  window.location.href = data.redirect_url;
                }
             } catch (err) {
                btn.disabled = false;
                btn.innerText = 'Approve';
-               showError(err.message);
+               showError(err.message || String(err));
             }
           }
           
           async function deny() {
               try {
-                 const res = await fetch('/api/oauth/deny', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ authorization_id: authId })
-                 });
+                 const { data, error } = await supabaseClient.auth.oauth.denyAuthorization(authId);
                  
-                 const result = await res.json();
-                 if (result.error) {
+                 if (error) {
                     // Provide helpful error messages
-                    if (result.error.includes('authorization not found')) {
+                    if (error.message && error.message.includes('authorization not found')) {
                        throw new Error('This authorization request has expired or was already used. Please start a new authorization request from your application.');
                     }
-                    throw new Error(result.error);
+                    throw error;
                  }
                  
-                 if (result.redirect_url) {
-                    window.location.href = result.redirect_url;
+                 if (data?.redirect_url) {
+                    window.location.href = data.redirect_url;
                  }
               } catch (err) {
-                 showError(err.message);
+                 showError(err.message || String(err));
               }
           }
 

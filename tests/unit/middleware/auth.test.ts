@@ -83,7 +83,7 @@ describe('Auth Middleware', () => {
     expect(mockRes.type).toHaveBeenCalledWith('text/plain');
     expect(mockRes.set).toHaveBeenCalledWith(
       'WWW-Authenticate',
-      `Bearer resource_metadata="${publicUrl}/.well-known/oauth-protected-resource/sse"`,
+      `Bearer resource_metadata="${publicUrl}/.well-known/oauth-protected-resource"`,
     );
     expect(mockRes.send).toHaveBeenCalledWith('Unauthorized');
     expect(next).not.toHaveBeenCalled();

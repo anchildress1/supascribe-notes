@@ -79,3 +79,76 @@ OUTPUT NOW
 - SQL migrations
 - Dockerfile
 - README with exact commands
+
+---
+
+CONTEXT: OAuth 2.1 + OIDC + PKCE flow between ChatGPT (OAuth client) and Supabase (authorization server) to access a protected MCP resource.
+
+CURRENT STATE:
+
+1. ChatGPT initiates OAuth Authorization Code flow:
+   - response_type=code
+   - client_id=<ChatGPT client_id>
+   - redirect_uri=https://chatgpt.com/connector_platform_oauth_redirect
+   - scope=openid profile email phone
+   - code_challenge + S256 (PKCE)
+   - resource=https://supascribe-notes-mcp-800441415595.us-east1.run.app
+
+2. Supabase /authorize returns 302 (expected).
+   - User authenticates and consents.
+
+3. Expected next step:
+   Supabase redirects to:
+   https://chatgpt.com/connector_platform_oauth_redirect?code=...&state=...
+   ChatGPT exchanges:
+   grant_type=authorization_code
+   code=...
+   code_verifier=...
+   client_id=...
+   resource=...
+   for:
+   access_token (+ id_token for OIDC)
+
+4. What is actually happening:
+   ChatGPT later calls:
+   GET /sse?authorization_id=...
+   Server responds:
+   401 Unauthorized
+   WWW-Authenticate: Bearer resource_metadata=".../oauth-protected-resource/sse"
+
+   This indicates:
+   - OAuth linking has NOT successfully completed.
+   - ChatGPT does not yet possess a valid access_token for the resource.
+   - It is retrying the protected resource discovery flow.
+
+5. Key observation:
+   The /sse request shown is a browser navigation request
+   Accept: text/html
+   Sec-Fetch-Mode: navigate
+
+   This is part of the linking handshake, not a real MCP SSE stream.
+   A successful link would show:
+   Authorization: Bearer <access_token>
+   Accept: text/event-stream
+
+LIKELY FAILURE POINTS:
+
+- Supabase OAuth client registration missing:
+  - client_id not registered
+  - redirect_uri not allowlisted exactly
+- Token endpoint not returning required fields
+- access_token audience does not match the requested resource
+- id_token missing despite openid scope
+
+authorization_id:
+This is a session correlation handle used by ChatGPT to bind
+the browser auth flow to the MCP linking session.
+It is NOT manually redeemable and should not be exchanged directly.
+
+SUMMARY:
+OAuth initiation works.
+Discovery works.
+Protection works.
+Token issuance or redirect back to ChatGPT is failing,
+so ChatGPT never receives a usable access_token,
+and therefore /sse continues to 401.

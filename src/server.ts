@@ -1,12 +1,11 @@
 import express from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
-import * as z from 'zod';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Config } from './config.js';
-import { createSupabaseClient } from './lib/supabase.js';
-import { CardInputSchema } from './schemas/card.js';
+import { WriteCardsInputSchema } from './schemas/card.js';
 import type { WriteCardsInput } from './schemas/card.js';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { createSupabaseClient } from './lib/supabase.js';
+import type { Config } from './config.js';
 import { handleHealth } from './tools/health.js';
 import { handleWriteCards } from './tools/write-cards.js';
 import { logger } from './lib/logger.js';
@@ -15,8 +14,10 @@ import { SupabaseTokenVerifier } from './lib/auth-provider.js';
 import { createAuthMiddleware } from './middleware/auth.js';
 import { renderAuthPage } from './views/auth-view.js';
 import { renderHelpPage } from './views/help-view.js';
+import { createOpenApiSpec } from './lib/openapi.js';
+import cors from 'cors';
 
-import { rateLimit } from 'express-rate-limit';
+// Rate limiting is handled by the middleware
 
 export function createApp(config: Config): express.Express {
   const supabase = createSupabaseClient(config.supabaseUrl, config.supabaseServiceRoleKey);
@@ -24,19 +25,15 @@ export function createApp(config: Config): express.Express {
   const app = express();
   app.set('trust proxy', 1);
 
-  // Rate Limiting
-  const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    limit: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
-    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  });
-  app.use(limiter);
+  app.set('trust proxy', 1);
 
   // Health check
   app.get('/status', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
+
+  // Enable CORS
+  app.use(cors());
 
   app.use(express.json());
 
@@ -48,6 +45,17 @@ export function createApp(config: Config): express.Express {
   // OAuth Authorization UI endpoint
   app.get('/auth/authorize', (req, res) => {
     res.type('text/html').send(renderAuthPage(config));
+  });
+
+  // OpenAPI Spec
+  app.get('/openapi.json', (req, res) => {
+    const spec = createOpenApiSpec(config.publicUrl);
+    res.json(spec);
+  });
+
+  // REST Health Check (matches /status)
+  app.get('/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
   // Root endpoint - User facing help page
@@ -128,6 +136,40 @@ export function createApp(config: Config): express.Express {
     }
   });
 
+  // REST API: Write Cards (Compatibility for ChatGPT Actions)
+  app.post('/api/write-cards', authenticate, async (req, res) => {
+    try {
+      const bodyResult = WriteCardsInputSchema.safeParse(req.body);
+      if (!bodyResult.success) {
+        res.status(400).json({ error: 'Validation failed', details: bodyResult.error });
+        return;
+      }
+
+      // Reuse the MCP tool logic
+      const result = await handleWriteCards(supabase, bodyResult.data.cards);
+
+      // Unwrap MCP result
+      if (result.isError) {
+        const errorText =
+          result.content[0].type === 'text' ? result.content[0].text : 'Unknown error';
+        // Try to parse if it's JSON
+        try {
+          const parsed = JSON.parse(errorText);
+          res.status(500).json(parsed);
+        } catch {
+          res.status(500).json({ error: errorText });
+        }
+        return;
+      }
+
+      const successText = result.content[0].type === 'text' ? result.content[0].text : '{}';
+      res.json(JSON.parse(successText));
+    } catch (err) {
+      logger.error({ error: err }, 'REST write-cards failed');
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Messages endpoint
   app.post('/messages', authenticate, async (req, res) => {
     const sessionId = req.query.sessionId;
@@ -157,22 +199,25 @@ export function createApp(config: Config): express.Express {
   return app;
 }
 
-function createMcpServer(supabase: SupabaseClient): McpServer {
+export function createMcpServer(supabase: SupabaseClient): McpServer {
   const server = new McpServer({
     name: 'supascribe-notes-mcp',
     version: '1.0.0',
   });
 
-  server.tool('health', 'Check server and Supabase connectivity status', {}, async () =>
-    handleHealth(supabase),
+  server.tool(
+    'health',
+    'Check server and Supabase connectivity status',
+    {},
+    { readOnlyHint: true },
+    async () => handleHealth(supabase),
   );
 
   server.tool(
     'write_cards',
     'Validate and upsert index cards to Supabase with revision history',
-    {
-      cards: z.array(CardInputSchema).min(1).max(50),
-    },
+    WriteCardsInputSchema.shape,
+    { readOnlyHint: false },
     async ({ cards }: WriteCardsInput) => handleWriteCards(supabase, cards),
   );
 

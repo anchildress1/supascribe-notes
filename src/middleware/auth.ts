@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import type { SupabaseTokenVerifier } from '../lib/auth-provider.js';
 import { logger } from '../lib/logger.js';
 
-export interface AuthenticatedRequest extends Request {
+interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
   };
@@ -28,12 +28,7 @@ export function createAuthMiddleware(authVerifier: SupabaseTokenVerifier, public
       // Handle OAuth Redirect misconfiguration:
       // If the user lands on ANY protected endpoint (like /sse) with an authorization_id query param
       // and accepts HTML, redirect them to the root / which handles the Auth UI.
-      if (req.query.authorization_id && req.accepts('html')) {
-        const redirectUrl = `/?authorization_id=${req.query.authorization_id}`;
-        logger.debug({ redirectUrl }, 'Redirecting misrouted OAuth callback to root');
-        res.redirect(302, redirectUrl);
-        return;
-      }
+      // Redirect logic removed as it interferes with standard OAuth flow
 
       // Check for browser navigation (AcceptHeader includes text/html)
       // BUT exclude /sse, which must return 401 + WWW-Authenticate for the client to handle it
@@ -79,10 +74,7 @@ export function createAuthMiddleware(authVerifier: SupabaseTokenVerifier, public
         return;
       }
 
-      let resourceMetadataUrl = `${publicUrl}/.well-known/oauth-protected-resource`;
-      if (req.originalUrl.includes('/sse')) {
-        resourceMetadataUrl = `${publicUrl}/.well-known/oauth-protected-resource/sse`;
-      }
+      const resourceMetadataUrl = `${publicUrl}/.well-known/oauth-protected-resource`;
 
       res.set('WWW-Authenticate', `Bearer resource_metadata="${resourceMetadataUrl}"`);
       res.type('text/plain').status(401).send('Unauthorized');
@@ -100,10 +92,7 @@ export function createAuthMiddleware(authVerifier: SupabaseTokenVerifier, public
       // If the token is invalid, we can technically also send the challenge,
       // but a 401 with "Invalid token" is also acceptable.
       // To be safe and help clients discover the config, let's include the header here too.
-      let resourceMetadataUrl = `${publicUrl}/.well-known/oauth-protected-resource`;
-      if (req.originalUrl.includes('/sse')) {
-        resourceMetadataUrl = `${publicUrl}/.well-known/oauth-protected-resource/sse`;
-      }
+      const resourceMetadataUrl = `${publicUrl}/.well-known/oauth-protected-resource`;
 
       res.set(
         'WWW-Authenticate',

@@ -38,28 +38,40 @@ export function renderAuthPage(config: Config): string {
 
         <script>
           const supabaseUrl = '${config.supabaseUrl}';
-          const supabase = supabase.createClient(supabaseUrl, '${config.supabaseAnonKey}');
+          // Use a different variable name to avoid shadowing the global 'supabase' from the CDN script
+          const supabaseClient = supabase.createClient(supabaseUrl, '${config.supabaseAnonKey}');
           const params = new URLSearchParams(window.location.search);
           const authId = params.get('authorization_id');
 
           async function init() {
-            if (!authId) {
-              showError('Missing authorization_id');
-              return;
-            }
-            
-            document.getElementById('loading').style.display = 'block';
-            
-            // check session
-            const { data: { session } } = await supabase.auth.getSession();
-            
-            if (!session) {
+            try {
+              if (!authId) {
+                showError('Missing authorization_id');
+                return;
+              }
+              
+              document.getElementById('loading').style.display = 'block';
+              
+              // check session
+              const { data: { session }, error } = await supabaseClient.auth.getSession();
+              
+              if (error) {
+                console.error('Session error:', error);
+                throw error;
+              }
+              
+              if (!session) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('login-section').style.display = 'block';
+                return;
+              }
+              
+              loadConsent(session);
+            } catch (err) {
+              console.error('Init error:', err);
+              showError('Failed to initialize: ' + (err.message || String(err)));
               document.getElementById('loading').style.display = 'none';
-              document.getElementById('login-section').style.display = 'block';
-              return;
             }
-            
-            loadConsent(session);
           }
 
           async function loadConsent(session) {
@@ -77,18 +89,23 @@ export function renderAuthPage(config: Config): string {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             
-            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-            
-            if (error) {
-              showError(error.message);
-            } else {
-              loadConsent(data.session);
+            try {
+              const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+              
+              if (error) {
+                showError(error.message);
+              } else {
+                loadConsent(data.session);
+              }
+            } catch (err) {
+               showError(err.message || String(err));
             }
           }
 
           async function approve() {
               try {
-               const { data: { session } } = await supabase.auth.getSession();
+               const { data: { session } } = await supabaseClient.auth.getSession();
+               if (!session) throw new Error('No active session');
                const token = session.access_token;
                
                const res = await fetch('/api/oauth/approve', {
@@ -109,21 +126,26 @@ export function renderAuthPage(config: Config): string {
           }
           
           async function deny() {
-               const { data: { session } } = await supabase.auth.getSession();
-               const token = session.access_token;
-               
-               const res = await fetch('/api/oauth/deny', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                  body: JSON.stringify({ authorization_id: authId })
-               });
-               
-               const result = await res.json();
-               if (result.error) throw new Error(result.error);
-               
-               if (result.redirect_url) {
-                  window.location.href = result.redirect_url;
-               }
+              try {
+                 const { data: { session } } = await supabaseClient.auth.getSession();
+                 if (!session) throw new Error('No active session');
+                 const token = session.access_token;
+                 
+                 const res = await fetch('/api/oauth/deny', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                    body: JSON.stringify({ authorization_id: authId })
+                 });
+                 
+                 const result = await res.json();
+                 if (result.error) throw new Error(result.error);
+                 
+                 if (result.redirect_url) {
+                    window.location.href = result.redirect_url;
+                 }
+              } catch (err) {
+                 showError(err.message);
+              }
           }
 
           function showError(msg) {

@@ -277,4 +277,23 @@ describe('MCP Server Integration', () => {
     // Close
     await reader.cancel();
   });
+
+  it('POST /messages returns 404 for unknown session', async () => {
+    const res = await fetch(`${baseUrl}/messages?sessionId=unknown-session-id`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test-token',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'ping',
+      }),
+    });
+
+    expect(res.status).toBe(404);
+    const text = await res.text();
+    expect(text).toContain('Session not found');
+  });
 });

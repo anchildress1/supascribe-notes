@@ -90,6 +90,27 @@ describe('OAuth Approval Endpoint', () => {
         if (urlStr.includes('mock-supabase.local')) {
           // Handle GET request for authorization details
           if (init?.method === 'GET' && urlStr.includes('/oauth/authorizations/')) {
+            // Simulate error if authorization_id contains 'get-fail-auth'
+            if (urlStr.includes('get-fail-auth')) {
+              return Promise.resolve({
+                ok: false,
+                status: 400,
+                json: async () => ({ error: { message: 'Failed to get authorization details' } }),
+              } as Response);
+            }
+
+            // Simulate missing user_id if authorization_id contains 'no-user-id'
+            if (urlStr.includes('no-user-id')) {
+              return Promise.resolve({
+                ok: true,
+                status: 200,
+                json: async () => ({
+                  client_id: 'test-client',
+                  // No user_id
+                }),
+              } as Response);
+            }
+
             return Promise.resolve({
               ok: true,
               status: 200,
@@ -202,6 +223,34 @@ describe('OAuth Approval Endpoint', () => {
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string };
     expect(body.error).toBe('Missing authorization_id');
+  });
+
+  it('POST /api/oauth/approve returns 500 when GET authorization details fails', async () => {
+    const res = await fetch(`${baseUrl}/api/oauth/approve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ authorization_id: 'get-fail-auth' }),
+    });
+
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain('Failed to get authorization details');
+  });
+
+  it('POST /api/oauth/approve returns 500 when authorization has no user_id', async () => {
+    const res = await fetch(`${baseUrl}/api/oauth/approve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ authorization_id: 'no-user-id' }),
+    });
+
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain('does not have an associated user');
   });
 
   it('POST /api/oauth/deny calls external API and returns redirect', async () => {

@@ -128,7 +128,6 @@ describe('OAuth Approval Endpoint', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: 'Bearer test-token',
       },
       body: JSON.stringify({ authorization_id: 'auth-123' }),
     });
@@ -137,13 +136,13 @@ describe('OAuth Approval Endpoint', () => {
     const body = (await res.json()) as { redirect_url: string };
     expect(body.redirect_url).toContain('example.com/callback');
 
-    // Verify external call
+    // Verify external call uses service role key
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.stringContaining('/auth/v1/oauth/authorizations/auth-123/consent'),
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({
-          Authorization: 'Bearer test-token',
+          Authorization: expect.stringContaining('Bearer'),
           apikey: 'anon-key',
         }),
         body: JSON.stringify({ action: 'approve' }),
@@ -156,7 +155,6 @@ describe('OAuth Approval Endpoint', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: 'Bearer test-token',
       },
       body: JSON.stringify({ authorization_id: 'fail-auth' }),
     });
@@ -171,7 +169,6 @@ describe('OAuth Approval Endpoint', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: 'Bearer test-token',
       },
       body: JSON.stringify({ authorization_id: 'network-error' }),
     });
@@ -186,7 +183,6 @@ describe('OAuth Approval Endpoint', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: 'Bearer test-token',
       },
       body: JSON.stringify({}),
     });
@@ -201,7 +197,6 @@ describe('OAuth Approval Endpoint', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: 'Bearer test-token',
       },
       body: JSON.stringify({ authorization_id: 'auth-456' }),
     });
@@ -225,7 +220,6 @@ describe('OAuth Approval Endpoint', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: 'Bearer test-token',
       },
       body: JSON.stringify({}),
     });

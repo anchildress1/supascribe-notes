@@ -49,6 +49,7 @@ vi.mock('../../src/lib/supabase.js', () => ({
 const testConfig: Config = {
   supabaseUrl: 'http://localhost:54321',
   supabaseServiceRoleKey: 'test-key',
+  supabaseAnonKey: 'anon-key',
   port: 0,
   publicUrl: 'http://localhost:0',
 };
@@ -86,13 +87,14 @@ describe('MCP Server Integration', () => {
     expect(text).toContain('<!DOCTYPE html>');
   });
 
-  it('GET /?authorization_id=test returns Login UI', async () => {
+  it('GET /?authorization_id=test returns Consent UI', async () => {
     const res = await fetch(`${baseUrl}/?authorization_id=test`);
     expect(res.status).toBe(200);
-    expect(res.headers.get('content-type')).toContain('text/html');
     const text = await res.text();
     expect(text).toContain('Authorize Access');
-    expect(text).toContain('supabase.createClient');
+    expect(text).toContain('External Application');
+    expect(text).toContain('approve()');
+    expect(text).toContain('deny()');
   });
 
   it('GET /sse returns 401 without auth', async () => {

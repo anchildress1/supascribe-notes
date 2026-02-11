@@ -45,16 +45,13 @@ export function createApp(config: Config): express.Express {
 
   const authVerifier = new SupabaseTokenVerifier(supabase);
 
-  // Root endpoint - Login/Consent UI or Help page
+  // OAuth Authorization UI endpoint
+  app.get('/auth/authorize', (req, res) => {
+    res.type('text/html').send(renderAuthPage(config));
+  });
+
+  // Root endpoint - User facing help page
   app.get('/', (req, res) => {
-    const authId = req.query.authorization_id;
-
-    if (authId) {
-      res.type('text/html').send(renderAuthPage(config));
-      return;
-    }
-
-    // Root endpoint - User facing help page
     res.type('text/html').send(renderHelpPage());
   });
 

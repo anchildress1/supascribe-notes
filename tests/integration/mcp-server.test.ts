@@ -87,8 +87,8 @@ describe('MCP Server Integration', () => {
     expect(text).toContain('<!DOCTYPE html>');
   });
 
-  it('GET /?authorization_id=test returns Consent UI', async () => {
-    const res = await fetch(`${baseUrl}/?authorization_id=test`);
+  it('GET /auth/authorize returns Consent UI', async () => {
+    const res = await fetch(`${baseUrl}/auth/authorize`);
     expect(res.status).toBe(200);
     const text = await res.text();
     expect(text).toContain('Authorize Access');

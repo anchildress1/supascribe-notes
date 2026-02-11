@@ -106,13 +106,8 @@ export function createApp(config: Config): express.Express {
 
             <script>
               const supabaseUrl = '${config.supabaseUrl}';
-              const supabaseKey = '${config.supabaseServiceRoleKey}'; // WARNING: Service role key used here for demo purposes to enable admin calls. IN PRODUCTION USE ANON KEY + SERVER SIDE PROXY.
-              // Actually, preventing exposure of Service Role Key is critical. 
-              // But 'approveAuthorization' is an admin-ish action or requires the user's session?
-              // The docs say 'supabase.auth.oauth.approveAuthorization' works with the USER session.
-              // So we should use the ANON key here.
-            </script>
-            
+              // const supabaseKey = '...'; // Removed to prevent leaking Service Role Key
+              
               const supabase = supabase.createClient(supabaseUrl, '${config.supabaseAnonKey}');
               const params = new URLSearchParams(window.location.search);
               const authId = params.get('authorization_id');

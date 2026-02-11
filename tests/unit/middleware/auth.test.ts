@@ -19,6 +19,7 @@ describe('Auth Middleware', () => {
       headers: {},
       query: {},
       path: '/',
+      originalUrl: '/',
       accepts: vi.fn().mockReturnValue(false), // Default to not accepting HTML
     } as unknown as Partial<Request>;
 
@@ -58,6 +59,7 @@ describe('Auth Middleware', () => {
   it('returns 401 HTML if missing Authorization header and accepts HTML', async () => {
     (mockReq.accepts as Mock).mockReturnValue('html');
     mockReq.path = '/some-page';
+    mockReq.originalUrl = '/some-page';
     const middleware = createAuthMiddleware(mockVerifier, publicUrl);
 
     await middleware(mockReq as Request, mockRes as Response, next);
@@ -72,6 +74,7 @@ describe('Auth Middleware', () => {
   it('returns 401 text/plain for /sse even if accepting HTML', async () => {
     (mockReq.accepts as Mock).mockReturnValue('html');
     mockReq.path = '/sse';
+    mockReq.originalUrl = '/sse';
     const middleware = createAuthMiddleware(mockVerifier, publicUrl);
 
     await middleware(mockReq as Request, mockRes as Response, next);

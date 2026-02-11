@@ -1,6 +1,7 @@
 export interface Config {
   supabaseUrl: string;
   supabaseServiceRoleKey: string;
+  supabaseAnonKey: string;
   port: number;
   publicUrl: string;
 }
@@ -8,6 +9,8 @@ export interface Config {
 export function loadConfig(): Config {
   const supabaseUrl = requireEnv('SUPABASE_URL');
   const supabaseServiceRoleKey = requireEnv('SUPABASE_SERVICE_ROLE_KEY');
+  // Optional but recommended for client-side Auth UI
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
   const port = parseInt(process.env['PORT'] ?? '8080', 10);
 
   if (isNaN(port) || port < 0 || port > 65535) {
@@ -22,6 +25,7 @@ export function loadConfig(): Config {
   return {
     supabaseUrl,
     supabaseServiceRoleKey,
+    supabaseAnonKey,
     port,
     publicUrl: process.env.PUBLIC_URL || `http://localhost:${port}`,
   };

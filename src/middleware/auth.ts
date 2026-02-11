@@ -2,6 +2,12 @@ import type { Request, Response, NextFunction } from 'express';
 import type { SupabaseTokenVerifier } from '../lib/auth-provider.js';
 import { logger } from '../lib/logger.js';
 
+export interface AuthenticatedRequest extends Request {
+  user?: {
+    id: string;
+  };
+}
+
 export function createAuthMiddleware(authVerifier: SupabaseTokenVerifier, publicUrl: string) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
@@ -21,7 +27,7 @@ export function createAuthMiddleware(authVerifier: SupabaseTokenVerifier, public
     if (!token) {
       // Check for browser navigation (AcceptHeader includes text/html)
       // BUT exclude /sse, which must return 401 + WWW-Authenticate for the client to handle it
-      if (req.accepts('html') && !req.path.endsWith('/sse')) {
+      if (req.accepts('html') && !req.originalUrl.includes('/sse')) {
         res.status(401).type('text/html').send(`
           <!DOCTYPE html>
           <html>
@@ -64,7 +70,7 @@ export function createAuthMiddleware(authVerifier: SupabaseTokenVerifier, public
       }
 
       let resourceMetadataUrl = `${publicUrl}/.well-known/oauth-protected-resource`;
-      if (req.path.endsWith('/sse')) {
+      if (req.originalUrl.includes('/sse')) {
         resourceMetadataUrl = `${publicUrl}/.well-known/oauth-protected-resource/sse`;
       }
 
@@ -75,7 +81,8 @@ export function createAuthMiddleware(authVerifier: SupabaseTokenVerifier, public
 
     // Check OAuth Token
     try {
-      await authVerifier.verifyAccessToken(token);
+      const authInfo = await authVerifier.verifyAccessToken(token);
+      (req as AuthenticatedRequest).user = { id: authInfo.clientId };
       next();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -84,7 +91,7 @@ export function createAuthMiddleware(authVerifier: SupabaseTokenVerifier, public
       // but a 401 with "Invalid token" is also acceptable.
       // To be safe and help clients discover the config, let's include the header here too.
       let resourceMetadataUrl = `${publicUrl}/.well-known/oauth-protected-resource`;
-      if (req.path.endsWith('/sse')) {
+      if (req.originalUrl.includes('/sse')) {
         resourceMetadataUrl = `${publicUrl}/.well-known/oauth-protected-resource/sse`;
       }
 

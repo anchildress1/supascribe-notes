@@ -12,30 +12,9 @@ import { handleWriteCards } from './tools/write-cards.js';
 import { logger } from './lib/logger.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { SupabaseTokenVerifier } from './lib/auth-provider.js';
-import { createAuthMiddleware, type AuthenticatedRequest } from './middleware/auth.js';
+import { createAuthMiddleware } from './middleware/auth.js';
 import { renderAuthPage } from './views/auth-view.js';
 import { renderHelpPage } from './views/help-view.js';
-
-interface SupabaseAdmin {
-  approveOAuthAuthorization(
-    authorizationId: string,
-    userId: string,
-  ): Promise<{
-    data: { url?: string; redirect_url?: string } | null;
-    error: { message: string } | null;
-  }>;
-  denyAuthorization(authorizationId: string): Promise<{
-    data: { url?: string; redirect_url?: string } | null;
-    error: { message: string } | null;
-  }>;
-  approveAuthorization(
-    authorizationId: string,
-    userId: string,
-  ): Promise<{
-    data: { url?: string; redirect_url?: string } | null;
-    error: { message: string } | null;
-  }>;
-}
 
 import { rateLimit } from 'express-rate-limit';
 
@@ -124,15 +103,9 @@ export function createApp(config: Config): express.Express {
   // Requires user session verification
   app.post('/api/oauth/approve', authenticate, async (req, res) => {
     const { authorization_id } = req.body;
-    const user = (req as AuthenticatedRequest).user; // Set by authenticate middleware
 
     if (!authorization_id) {
       res.status(400).json({ error: 'Missing authorization_id' });
-      return;
-    }
-
-    if (!user) {
-      res.status(401).json({ error: 'Unauthorized' });
       return;
     }
 
@@ -141,36 +114,37 @@ export function createApp(config: Config): express.Express {
     // 'approveAuthorization' takes 'user_id' typically.
 
     try {
-      // According to our research, this method is under auth.admin
-      // TypeScript might complain if types are outdated.
-      // We cast to 'unknown' then to our interface to avoid build issues while relying on the underlying library method.
-      const { data, error } = await (
-        supabase.auth.admin as unknown as SupabaseAdmin
-      ).approveOAuthAuthorization(authorization_id, user.id);
+      // Direct call to GoTrue API since supabase-js admin client methods are missing or internal
+      const response = await fetch(
+        `${config.supabaseUrl}/auth/v1/oauth/authorizations/${authorization_id}/consent`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: req.headers.authorization as string, // Pass through the user's bearer token
+            apikey: config.supabaseAnonKey,
+          },
+          body: JSON.stringify({ action: 'approve' }),
+        },
+      );
 
-      if (error) throw error;
-      if (!data) throw new Error('No data returned from Supabase');
+      const data = (await response.json()) as {
+        url?: string;
+        redirect_url?: string;
+        error?: { message: string };
+        msg?: string;
+      };
 
-      res.json({ redirect_url: data.url || data.redirect_url }); // API usually returns the redirect URL with code
+      if (!response.ok) {
+        throw new Error(data.error?.message || data.msg || 'Failed to approve authorization');
+      }
+
+      // The API returns { url: "..." } or similar
+      res.json({ redirect_url: data.url || data.redirect_url });
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       logger.error({ err: errorMsg }, 'Failed to approve authorization');
-
-      // Fallback: try different method name if 'approveOAuthAuthorization' fails?
-      // Some versions use `approveAuthorization`. Let's try that too if the first fails?
-      // Or better yet, stick to `approveAuthorization` if that's what docs say.
-      // Re-checking Step 206 summary: "approveAuthorization".
-      // Let's use `approveAuthorization` as primary.
-      try {
-        const { data: data2, error: error2 } = await (
-          supabase.auth.admin as unknown as SupabaseAdmin
-        ).approveAuthorization(authorization_id, user.id);
-        if (error2) throw error2; // Throw original error if this fails too
-        if (!data2) throw new Error('No data returned from fallback approval');
-        res.json({ redirect_url: data2.url || data2.redirect_url });
-      } catch {
-        res.status(500).json({ error: errorMsg });
-      }
+      res.status(500).json({ error: errorMsg });
     }
   });
 
@@ -183,12 +157,31 @@ export function createApp(config: Config): express.Express {
     }
 
     try {
-      // Same logic for deny
-      const { data, error } = await (
-        supabase.auth.admin as unknown as SupabaseAdmin
-      ).denyAuthorization(authorization_id);
-      if (error) throw error;
-      if (!data) throw new Error('No data returned from Supabase');
+      // Direct call to GoTrue API
+      const response = await fetch(
+        `${config.supabaseUrl}/auth/v1/oauth/authorizations/${authorization_id}/consent`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: req.headers.authorization as string, // Pass through the user's bearer token
+            apikey: config.supabaseAnonKey,
+          },
+          body: JSON.stringify({ action: 'deny' }),
+        },
+      );
+
+      const data = (await response.json()) as {
+        url?: string;
+        redirect_url?: string;
+        error?: { message: string };
+        msg?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error?.message || data.msg || 'Failed to deny authorization');
+      }
+
       res.json({ redirect_url: data.url || data.redirect_url });
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err);

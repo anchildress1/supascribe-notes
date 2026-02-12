@@ -29,8 +29,10 @@ vi.mock('../../src/lib/auth-provider.js', () => ({
 // Mock MCP Server
 vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
   McpServer: vi.fn().mockImplementation(() => ({
-    tool: vi.fn(),
-    connect: vi.fn().mockResolvedValue(undefined),
+    registerTool: vi.fn(),
+    connect: vi.fn().mockImplementation(async (transport) => {
+      await transport.start();
+    }),
   })),
 }));
 
@@ -75,6 +77,25 @@ describe('Server Error Handling', () => {
     server?.close();
   });
 
+  it('GET /sse initializes connection and calls start exactly once', async () => {
+    // 1. Make start() hang so connection stays open and we can verify count
+    mocks.start.mockImplementation(() => new Promise(() => {}));
+
+    const _ssePromise = fetch(`${baseUrl}/sse`, {
+      headers: {
+        Authorization: 'Bearer token',
+      },
+    });
+
+    // Give it a moment to run
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Verify start was called exactly once (via server.connect)
+    expect(mocks.start).toHaveBeenCalledTimes(1);
+
+    // We don't await response because it's hanging
+  });
+
   it('GET /sse returns 500 if transport start fails', async () => {
     mocks.start.mockRejectedValue(new Error('Failed to initialize session'));
 
@@ -90,10 +111,10 @@ describe('Server Error Handling', () => {
   });
 
   it('POST /messages returns 500 if handlePostMessage fails', async () => {
-    // 1. Make start() hang to simulate open connection
-    mocks.start.mockImplementation(() => new Promise(() => {}));
+    // 1. Start success
+    mocks.start.mockResolvedValue(undefined);
 
-    // 2. Start SSE connection (don't await response yet)
+    // 2. Start SSE connection (wait for it to settle)
     const _ssePromise = fetch(`${baseUrl}/sse`, {
       headers: {
         Authorization: 'Bearer token',
@@ -119,8 +140,5 @@ describe('Server Error Handling', () => {
     expect(res.status).toBe(500);
     const body = (await res.json()) as { error: string };
     expect(body.error).toBe('Internal server error');
-
-    // Cleanup: ssePromise is hanging. AbortController would be nice but fetch in Node 18+ supports it.
-    // However, server close in afterEach should clean up.
   });
 });

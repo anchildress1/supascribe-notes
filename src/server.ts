@@ -25,8 +25,6 @@ export function createApp(config: Config): express.Express {
   const app = express();
   app.set('trust proxy', 1);
 
-  app.set('trust proxy', 1);
-
   // Health check
   app.get('/status', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -60,6 +58,14 @@ export function createApp(config: Config): express.Express {
 
   // Root endpoint - User facing help page
   app.get('/', (req, res) => {
+    // Redirect to SSE endpoint if client prefers text/event-stream
+    // This helps MCP clients that are configured with the root URL
+    const preferred = req.accepts(['html', 'text/event-stream']);
+    if (preferred === 'text/event-stream') {
+      res.redirect(307, '/sse');
+      return;
+    }
+
     res.type('text/html').send(renderHelpPage());
   });
 
@@ -133,7 +139,9 @@ export function createApp(config: Config): express.Express {
       };
 
       // Start the transport - this keeps the connection open
-      await transport.start();
+      // Start the transport - this keeps the connection open
+      // transport.start() is already called by server.connect(transport)
+      // so we don't need to call it again.
     } catch (error) {
       logger.error({ error }, 'Failed to initialize SSE session');
       if (!res.headersSent) {
@@ -142,9 +150,10 @@ export function createApp(config: Config): express.Express {
     }
   });
 
-  // REST API: Write Cards (Compatibility for ChatGPT Actions)
+  // ChatGPT Apps Action: Write Cards
   app.post('/api/write-cards', authenticate, async (req, res) => {
     try {
+      logger.info('Received write-cards request from ChatGPT/App');
       const bodyResult = WriteCardsInputSchema.safeParse(req.body);
       if (!bodyResult.success) {
         res.status(400).json({ error: 'Validation failed', details: bodyResult.error });
@@ -211,19 +220,40 @@ export function createMcpServer(supabase: SupabaseClient): McpServer {
     version: '1.0.0',
   });
 
-  server.tool(
+  server.registerTool(
     'health',
-    'Check server and Supabase connectivity status',
-    {},
-    { readOnlyHint: true },
+    {
+      title: 'Health Check',
+      description: 'Check server and Supabase connectivity status',
+      inputSchema: {},
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+      _meta: {
+        ui: { visibility: ['model', 'app'] },
+      },
+    },
     async () => handleHealth(supabase),
   );
 
-  server.tool(
+  server.registerTool(
     'write_cards',
-    'Validate and upsert index cards to Supabase with revision history',
-    WriteCardsInputSchema.shape,
-    { readOnlyHint: false },
+    {
+      title: 'Write Index Cards',
+      description: 'Validate and upsert index cards to Supabase with revision history',
+      inputSchema: WriteCardsInputSchema.shape,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      _meta: {
+        ui: { visibility: ['model', 'app'] },
+      },
+    },
     async ({ cards }: WriteCardsInput) => handleWriteCards(supabase, cards),
   );
 

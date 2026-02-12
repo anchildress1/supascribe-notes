@@ -1,14 +1,17 @@
-Build an MCP server that writes index cards to Supabase and deploys to Google Cloud Run.
+Build a ChatGPT custom dev app (MCP-backed) that writes index cards to Supabase and deploys to Google Cloud Run.
+
+The server exposes tools via the MCP protocol for ChatGPT Apps SDK consumption. ChatGPT connects as an MCP client; this is NOT a standalone MCP server for arbitrary MCP clients.
 
 TARGET
 
 - Cloud Run project: unstable-anchildress1
 - Deploy method: Docker mimicing `example-deploy.sh`
+- Integration: ChatGPT custom dev app (Apps SDK, MCP transport)
 
 DELIVER
 
-1. Complete repo (MCP server + Supabase migrations + Dockerfile + README)
-2. MCP tools:
+1. Complete repo (MCP server for ChatGPT + Supabase migrations + Dockerfile + README)
+2. Tools (exposed via MCP to ChatGPT):
    - health()
    - write_cards(cards)
 

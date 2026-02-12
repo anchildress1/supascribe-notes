@@ -87,6 +87,17 @@ describe('MCP Server Integration', () => {
     expect(text).toContain('<!DOCTYPE html>');
   });
 
+  it('GET / redirects to /sse if Accept: text/event-stream', async () => {
+    const res = await fetch(`${baseUrl}/`, {
+      headers: {
+        Accept: 'text/event-stream',
+      },
+      redirect: 'manual',
+    });
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toBe('/sse');
+  });
+
   it('GET /auth/authorize returns Consent UI', async () => {
     const res = await fetch(`${baseUrl}/auth/authorize`);
     expect(res.status).toBe(200);
@@ -273,7 +284,21 @@ describe('MCP Server Integration', () => {
         if (json.id === 2 && json.result) {
           const tools = json.result.tools;
           expect(tools).toBeDefined();
-          expect(tools.some((t: { name: string }) => t.name === 'write_cards')).toBe(true);
+
+          const writeTool = tools.find((t: { name: string }) => t.name === 'write_cards');
+          expect(writeTool).toBeDefined();
+
+          // Debug output for user verification
+          console.log('--- DETECTED TOOL DEFINITION ---');
+          console.log(JSON.stringify(writeTool, null, 2));
+
+          // Verify schema structure per user request
+          expect(writeTool.inputSchema).toBeDefined();
+          expect(writeTool.inputSchema.type).toBe('object');
+          expect(writeTool.inputSchema.properties).toBeDefined();
+          expect(writeTool.inputSchema.properties.cards).toBeDefined();
+          expect(writeTool.inputSchema.properties.cards.type).toBe('array');
+
           foundTools = true;
           break;
         }

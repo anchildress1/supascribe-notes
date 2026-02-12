@@ -2,14 +2,22 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 import { CardInputSchema, WriteCardsInputSchema } from '../schemas/card.js';
 
 export function createOpenApiSpec(serverUrl: string): object {
+  // Generate schemas with proper references
   const CardInputJsonSchema = zodToJsonSchema(CardInputSchema, 'CardInput');
   const WriteCardsInputJsonSchema = zodToJsonSchema(WriteCardsInputSchema, 'WriteCardsInput');
+
+  // Helper to extract the actual schema definition from zod-to-json-schema output
+  type JsonSchemaWithDefinitions = { definitions?: Record<string, unknown> };
+  const getDefinition = (jsonSchema: JsonSchemaWithDefinitions | unknown, name: string) => {
+    return (jsonSchema as JsonSchemaWithDefinitions).definitions?.[name] || jsonSchema;
+  };
 
   return {
     openapi: '3.1.0',
     info: {
-      title: 'Supascribe Notes MCP',
-      description: 'API for writing index cards to Supabase',
+      title: 'Supascribe Notes Action',
+      description:
+        'API for writing formatted index cards to Supabase. integrating directly with ChatGPT.',
       version: '1.0.0',
     },
     servers: [
@@ -19,12 +27,8 @@ export function createOpenApiSpec(serverUrl: string): object {
     ],
     components: {
       schemas: {
-        CardInput:
-          (CardInputJsonSchema as { definitions?: { [key: string]: unknown } }).definitions
-            ?.CardInput || CardInputJsonSchema,
-        WriteCardsInput:
-          (WriteCardsInputJsonSchema as { definitions?: { [key: string]: unknown } }).definitions
-            ?.WriteCardsInput || WriteCardsInputJsonSchema,
+        CardInput: getDefinition(CardInputJsonSchema, 'CardInput'),
+        WriteCardsInput: getDefinition(WriteCardsInputJsonSchema, 'WriteCardsInput'),
       },
       securitySchemes: {
         BearerAuth: {
@@ -60,8 +64,10 @@ export function createOpenApiSpec(serverUrl: string): object {
       '/api/write-cards': {
         post: {
           operationId: 'writeCards',
+          'x-openai-isConsequential': true,
           summary: 'Write index cards to Supabase',
-          description: 'Validates and upserts index cards to the database with revision history.',
+          description:
+            'Validates and upserts index cards to the database with revision history. This is a consequential action.',
           security: [{ BearerAuth: [] }],
           requestBody: {
             required: true,

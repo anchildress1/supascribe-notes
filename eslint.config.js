@@ -22,7 +22,17 @@ export default tseslint.config(
     linterOptions: {
       // Ban inline eslint-disable comments project-wide
       reportUnusedDisableDirectives: 'error',
-      noInlineConfig: true,
+    },
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        URL: 'readonly',
+        Buffer: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        global: 'readonly',
+      },
     },
   },
   // Test-specific rules

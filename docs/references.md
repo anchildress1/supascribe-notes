@@ -32,8 +32,12 @@
 - https://docs.docker.com/build/
 - https://docs.docker.com/engine/reference/run/
 
-## OpenAI / ChatGPT MCP & Tooling Context
+## OpenAI / ChatGPT Apps SDK & Tooling Context
 
+- https://developers.openai.com/apps-sdk/reference/ (tool descriptor schema, \_meta fields)
+- https://developers.openai.com/apps-sdk/plan/tools/ (tool design guidance)
+- https://developers.openai.com/apps-sdk/build/chatgpt-ui/ (MCP bridge, ui.visibility)
+- https://developers.openai.com/blog/15-lessons-building-chatgpt-apps/ (publishing lessons)
 - https://platform.openai.com/docs
 - https://platform.openai.com/docs/actions
 - https://platform.openai.com/docs/guides/structured-outputs

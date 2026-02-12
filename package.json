@@ -1,7 +1,7 @@
 {
-  "name": "supascribe-notes",
+  "name": "supascribe-notes-mcp",
   "version": "0.1.0",
-  "description": "Backend server that writes index cards to Supabase, deployed on Cloud Run",
+  "description": "MCP server that writes index cards to Supabase, deployed on Cloud Run",
   "type": "module",
   "engines": {
     "node": ">=22"

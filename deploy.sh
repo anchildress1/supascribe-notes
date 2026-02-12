@@ -2,7 +2,7 @@
 set -e
 
 # Configuration
-SERVICE_NAME="supascribe-notes"
+SERVICE_NAME="supascribe-notes-mcp"
 
 REGION="us-east1"
 PORT="8080"

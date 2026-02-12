@@ -27,21 +27,21 @@ export class SupabaseTokenVerifier implements OAuthTokenVerifier {
     logger.debug({ userId: user.id }, 'Supabase token verified successfully');
 
     // Extract expiration from token directly since getUser validates it but doesn't return exp
-    let expiresAt: number;
+    let expiresAt: number | undefined;
     try {
-      // Base64Url decode (replace - with +, _ with / and remove padding)
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      // Buffer.from handles missing padding for base64
-      const payload = JSON.parse(Buffer.from(base64, 'base64').toString());
-
-      if (typeof payload.exp === 'number' && Number.isFinite(payload.exp)) {
-        expiresAt = payload.exp;
-      } else {
-        throw new Error('Invalid exp claim');
+      const payloadPart = token.split('.')[1];
+      if (payloadPart) {
+        const payload = JSON.parse(Buffer.from(payloadPart, 'base64url').toString());
+        if (typeof payload.exp === 'number' && Number.isFinite(payload.exp)) {
+          expiresAt = payload.exp;
+        }
       }
-    } catch {
-      // Fallback if token parsing fails (shouldn't happen for valid JWT)
+    } catch (e) {
+      logger.debug({ error: e }, 'Failed to parse token payload for exp');
+    }
+
+    if (expiresAt === undefined) {
+      // Fallback if token parsing fails or exp is missing (shouldn't happen for valid JWT from Supabase)
       // Just assume valid for 1 hour since getUser confirmed it
       expiresAt = Math.floor(Date.now() / 1000) + 3600;
     }

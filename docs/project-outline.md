@@ -152,3 +152,19 @@ Protection works.
 Token issuance or redirect back to ChatGPT is failing,
 so ChatGPT never receives a usable access_token,
 and therefore /sse continues to 401.
+
+---
+
+What actually makes tools show up
+
+From other dev reports:
+
+Tools must be present in the MCP tool metadata
+
+They must be valid (with proper annotations like readOnlyHint, etc.) when ChatGPT fetches the list
+
+The MCP server must not just respond, but respond correctly so that ChatGPT thinks there’s something to use — otherwise it hides them
+
+This has been flaky for devs in Dev Mode right now — sometimes ChatGPT doesn’t pick up the tools even if the server is correct
+
+Other builders have observed that decorating tools appropriately makes a difference (e.g., readOnlyHint and openWorldHint for read tools), but that is just one of the examples reported.

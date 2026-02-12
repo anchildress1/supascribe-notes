@@ -97,6 +97,14 @@ describe('MCP Server Integration', () => {
     expect(text).toContain('deny()');
   });
 
+  it('GET /sse/auth/authorize redirects to /auth/authorize', async () => {
+    const res = await fetch(`${baseUrl}/sse/auth/authorize?authorization_id=123`, {
+      redirect: 'manual',
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('/auth/authorize?authorization_id=123');
+  });
+
   it('GET /sse returns 401 without auth', async () => {
     const res = await fetch(`${baseUrl}/sse`, {
       headers: { Accept: 'text/event-stream' },
@@ -129,7 +137,7 @@ describe('MCP Server Integration', () => {
     const res = await fetch(`${baseUrl}/.well-known/oauth-protected-resource/sse`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { resource: string };
-    expect(body.resource).toBe(testConfig.publicUrl);
+    expect(body.resource).toBe(testConfig.supabaseUrl);
   });
 
   it('GET /sse initiates SSE connection', async () => {

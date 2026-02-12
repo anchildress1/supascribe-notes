@@ -29,16 +29,18 @@ make install
 
 ### Environment Variables
 
-| Variable                    | Required | Description                   |
-| --------------------------- | -------- | ----------------------------- |
-| `SUPABASE_URL`              | ✅       | Supabase project API URL      |
-| `SUPABASE_SERVICE_ROLE_KEY` | ✅       | Supabase service role key     |
-| `PORT`                      | ❌       | Server port (default: `8080`) |
-| `PUBLIC_URL`                | ❌       | Public URL for OAuth config   |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Supabase service role key |
+| `PORT` | ❌ | Server port (default: `8080`) |
+| `PUBLIC_URL` | ✅ | Public URL for OAuth & SSE |
 
 ## Authentication
 
-This server supports **OAuth 2.0**. The server strictly requires a valid Supabase Auth JWT in the `Authorization` header (`Authorization: Bearer <token>`). Query parameters are **not** supported for authentication. It exposes OAuth metadata at `/.well-known/oauth-authorization-server` for MCP clients to discover.
+This server uses **Supabase Auth** via OAuth 2.0 for all MCP operations. MCP clients (like ChatGPT) will automatically discover the OAuth configuration via:
+
+- `/.well-known/oauth-authorization-server`
+- `/.well-known/oauth-protected-resource`
+
+Standard `Authorization: Bearer <token>` header is required for all SSE and message endpoints.
 
 ## Database Schema
 
@@ -91,55 +93,25 @@ gcloud config set project anchildress1-unstable
 bash deploy.sh
 ```
 
-## Smoke Tests
-
 After deployment, verify the service is running:
 
 ```bash
 # Replace with your deployed Cloud Run service URL
+# You can find this in the Cloud Run console or with:
+# gcloud run services describe supascribe-notes-mcp --region YOUR_REGION --format='value(status.url)'
 SERVICE_URL="https://your-service-url"
 
-# HTTP status check
+# 1. Health check (Public)
 curl "$SERVICE_URL/status"
 
-# OAuth Discovery
-curl "$SERVICE_URL/.well-known/oauth-authorization-server"
-
-# OAuth Protected Resource Metadata
-curl "$SERVICE_URL/.well-known/oauth-protected-resource"
-
-# SSE Endpoint connection check (Requires Authorization header)
-curl -N -H "Authorization: Bearer <YOUR_TOKEN>" "$SERVICE_URL/sse"
-
-# Example: Write a card (Requires valid session)
-# First, perform initialization as above inside an MCP client.
-# Then, the client can call tools. Here is the JSON-RPC payload structure
-# that would be sent to the /messages endpoint for the write_cards tool:
-#
-# POST /messages?sessionId=<session-id>
-# {
-#   "jsonrpc": "2.0",
-#   "id": 2,
-#   "method": "tools/call",
-#   "params": {
-#     "name": "write_cards",
-#     "arguments": {
-#       "cards": [
-#         {
-#           "title": "Quantum Entanglement",
-#           "blurb": "Spooky action at a distance",
-#           "fact": "Two particles remain connected even when separated by vast distances.",
-#           "url": "https://en.wikipedia.org/wiki/Quantum_entanglement",
-#           "category": "Physics",
-#           "signal": 5,
-#           "tags": { "lvl0": ["Science"], "lvl1": ["Quantum Physics"] },
-#           "projects": ["research-2025"]
-#         }
-#       ]
-#     }
-#   }
-# }
+# 2. SSE handshake (Requires Auth)
+# Replace YOUR_TOKEN with a valid Supabase JWT
+curl -i -N -H "Accept: text/event-stream" \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     "$SERVICE_URL/sse"
 ```
+
+The SSE connection will return an `endpoint` event containing the URL for sending JSON-RPC messages, e.g., `$SERVICE_URL/messages?sessionId=...`.
 
 To fully test the MCP functionality, configure your MCP client (like Claude Desktop) to connect to the SSE endpoint:
 

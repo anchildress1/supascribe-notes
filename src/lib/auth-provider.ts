@@ -29,12 +29,13 @@ export class SupabaseTokenVerifier implements OAuthTokenVerifier {
     // Extract expiration from token directly since getUser validates it but doesn't return exp
     let expiresAt: number;
     try {
-      // Base64Url decode (replace - with +, _ with /)
+      // Base64Url decode (replace - with +, _ with / and remove padding)
       const base64Url = token.split('.')[1];
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      // Buffer.from handles missing padding for base64
       const payload = JSON.parse(Buffer.from(base64, 'base64').toString());
 
-      if (typeof payload.exp === 'number' && !isNaN(payload.exp)) {
+      if (typeof payload.exp === 'number' && Number.isFinite(payload.exp)) {
         expiresAt = payload.exp;
       } else {
         throw new Error('Invalid exp claim');

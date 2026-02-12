@@ -1,4 +1,4 @@
-# Supascribe Notes MCP
+# Supascribe Notes
 
 A TypeScript MCP server that writes index cards to Supabase, deployed on Google Cloud Run.
 
@@ -11,7 +11,19 @@ A TypeScript MCP server that writes index cards to Supabase, deployed on Google 
 
 ## Architecture
 
-![Sequence Diagram](docs/images/architecture-sequence-diagram.png)
+```mermaid
+graph TD
+    User([User])
+    ChatGPT[ChatGPT / MCP Client]
+    MCPServer[Supascribe Notes Server]
+    Supabase[(Supabase DB & Auth)]
+
+    User -- "Interacts with" --> ChatGPT
+    ChatGPT -- "OAuth 2.0 Handshake" --> Supabase
+    ChatGPT -- "JSON-RPC over SSE" --> MCPServer
+    MCPServer -- "Verifies Token" --> Supabase
+    MCPServer -- "Read/Write Cards" --> Supabase
+```
 
 ## Prerequisites
 
@@ -77,10 +89,10 @@ make ai-checks
 
 ```bash
 # Build
-docker build -t supascribe-notes-mcp .
+docker build -t supascribe-notes .
 
 # Run
-docker run -p 8080:8080 --env-file .env supascribe-notes-mcp
+docker run -p 8080:8080 --env-file .env supascribe-notes
 ```
 
 ## Deploy to Cloud Run
@@ -98,7 +110,7 @@ After deployment, verify the service is running:
 ```bash
 # Replace with your deployed Cloud Run service URL
 # You can find this in the Cloud Run console or with:
-# gcloud run services describe supascribe-notes-mcp --region YOUR_REGION --format='value(status.url)'
+# gcloud run services describe supascribe-notes --region YOUR_REGION --format='value(status.url)'
 SERVICE_URL="https://your-service-url"
 
 # 1. Health check (Public)

@@ -216,7 +216,7 @@ export function createApp(config: Config): express.Express {
 
 export function createMcpServer(supabase: SupabaseClient): McpServer {
   const server = new McpServer({
-    name: 'supascribe-notes-mcp',
+    name: 'supascribe-notes',
     version: '1.0.0',
   });
 

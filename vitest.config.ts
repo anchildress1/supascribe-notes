@@ -19,7 +19,6 @@ export default defineConfig({
     env: {
       SUPABASE_URL: 'http://localhost:54321',
       SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
-      MCP_AUTH_TOKEN: 'test-auth-token',
       PORT: '0',
     },
   },

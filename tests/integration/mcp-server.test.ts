@@ -129,7 +129,7 @@ describe('MCP Server Integration', () => {
     const res = await fetch(`${baseUrl}/.well-known/oauth-protected-resource/sse`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { resource: string };
-    expect(body.resource).toBe(testConfig.supabaseUrl);
+    expect(body.resource).toBe(testConfig.publicUrl);
   });
 
   it('GET /sse initiates SSE connection', async () => {

@@ -81,7 +81,7 @@ export function createApp(config: Config): express.Express {
   // OAuth Protected Resource Metadata
   app.get('/.well-known/oauth-protected-resource', (_req, res) => {
     res.json({
-      resource: config.supabaseUrl,
+      resource: config.publicUrl,
       authorization_servers: [`${config.supabaseUrl}/auth/v1`],
       scopes_supported: [],
       bearer_methods_supported: ['header'],
@@ -91,7 +91,7 @@ export function createApp(config: Config): express.Express {
   // SSE specific OAuth Protected Resource Metadata
   app.get('/.well-known/oauth-protected-resource/sse', (_req, res) => {
     res.json({
-      resource: config.supabaseUrl,
+      resource: config.publicUrl,
       authorization_servers: [`${config.supabaseUrl}/auth/v1`],
       scopes_supported: [],
       bearer_methods_supported: ['header'],

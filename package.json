@@ -19,9 +19,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "keywords": [
-    "chatgpt",
-    "supabase",
     "mcp",
+    "supabase",
     "cloud-run",
     "index-cards"
   ],

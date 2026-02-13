@@ -9,6 +9,10 @@ A TypeScript MCP server that writes index cards to Supabase, deployed on Google 
 | `health`      | Check server status and Supabase connectivity         |
 | `write_cards` | Validate and upsert index cards with revision history |
 
+## Architecture
+
+![Sequence Diagram](docs/images/architecture-sequence-diagram.png)
+
 ## Prerequisites
 
 - Node.js 22+
@@ -19,24 +23,27 @@ A TypeScript MCP server that writes index cards to Supabase, deployed on Google 
 ## Setup
 
 ```bash
-# Install dependencies
-npm install
-
-# Copy env template and fill in values
-cp .env.example .env
-
-# Install git hooks
-npx lefthook install
+# Install dependencies and git hooks
+make install
 ```
 
 ### Environment Variables
 
 | Variable                    | Required | Description                   |
 | --------------------------- | -------- | ----------------------------- |
-| `SUPABASE_URL`              | ✅       | Supabase project API URL      |
+| `SUPABASE_URL`              | ✅       | Supabase project URL          |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅       | Supabase service role key     |
-| `MCP_AUTH_TOKEN`            | ✅       | Bearer token for request auth |
 | `PORT`                      | ❌       | Server port (default: `8080`) |
+| `PUBLIC_URL`                | ✅       | Public URL for OAuth & SSE    |
+
+## Authentication
+
+This server uses **Supabase Auth** via OAuth 2.0 for all MCP operations. MCP clients (like ChatGPT) will automatically discover the OAuth configuration via:
+
+- `/.well-known/oauth-authorization-server`
+- `/.well-known/oauth-protected-resource`
+
+Standard `Authorization: Bearer <token>` header is required for all SSE and message endpoints.
 
 ## Database Schema
 
@@ -53,17 +60,17 @@ psql < supabase/migrations/003_create_generation_runs.sql
 
 ```bash
 # Start dev server with hot reload
-npm run dev
+make dev
 
 # Run tests
-npm test
+make test
 
 # Run tests with coverage
-npm run test:coverage
+make test-coverage
 
 # Lint and format
-npm run lint
-npm run format
+make lint
+make format
 
 # Run all CI checks locally
 make ai-checks
@@ -83,38 +90,36 @@ docker run -p 8080:8080 --env-file .env supascribe-notes-mcp
 
 ```bash
 # Set your GCP project
-gcloud config set project unstable-anchildress1
+gcloud config set project anchildress1-unstable
 
 # Deploy
 bash deploy.sh
 ```
 
-## Smoke Tests
-
-After deployment, verify the service:
+After deployment, verify the service is running:
 
 ```bash
+# Replace with your deployed Cloud Run service URL
+# You can find this in the Cloud Run console or with:
+# gcloud run services describe supascribe-notes-mcp --region YOUR_REGION --format='value(status.url)'
 SERVICE_URL="https://your-service-url"
-TOKEN="your-mcp-auth-token"
 
-# HTTP health check (non-MCP)
-curl -H "Authorization: Bearer $TOKEN" "$SERVICE_URL/healthz"
+# 1. Health check (Public)
+curl "$SERVICE_URL/status"
 
-# MCP initialize
-curl -X POST "$SERVICE_URL/mcp" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "jsonrpc": "2.0",
-    "id": 1,
-    "method": "initialize",
-    "params": {
-      "protocolVersion": "2025-03-26",
-      "capabilities": {},
-      "clientInfo": {"name": "smoke-test", "version": "1.0.0"}
-    }
-  }'
+# 2. SSE handshake (Requires Auth)
+# Replace YOUR_TOKEN with a valid Supabase JWT
+curl -i -N -H "Accept: text/event-stream" \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     "$SERVICE_URL/sse"
 ```
+
+The SSE connection will return an `endpoint` event containing the URL for sending JSON-RPC messages, e.g., `$SERVICE_URL/messages?sessionId=...`.
+
+To fully test the MCP functionality, configure your MCP client (like Claude Desktop) to connect to the SSE endpoint:
+
+- **URL**: `$SERVICE_URL/sse`
+- **Auth**: Use the standard OAuth 2.1 flow supported by your client, pointing to your Supabase project's auth endpoints.
 
 ## Card Shape
 
@@ -143,4 +148,4 @@ curl -X POST "$SERVICE_URL/mcp" \
 
 ## License
 
-MIT
+PolyForm Shield 1.0.0

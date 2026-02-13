@@ -20,8 +20,10 @@ export default tseslint.config(
       '@typescript-eslint/consistent-type-imports': 'error',
     },
     linterOptions: {
-      // Ban inline eslint-disable comments project-wide
+      // We allow inline configuration for specific overrides in test files if needed,
+      // but prefer keeping rules centralized in this config.
       reportUnusedDisableDirectives: 'error',
+      noInlineConfig: false,
     },
     languageOptions: {
       globals: {

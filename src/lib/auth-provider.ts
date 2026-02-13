@@ -42,7 +42,6 @@ export class SupabaseTokenVerifier implements OAuthTokenVerifier {
       }
     } catch {
       // Fallback if token parsing fails (shouldn't happen for valid JWT)
-      // Just assume valid for 1 hour since getUser confirmed it
       expiresAt = Math.floor(Date.now() / 1000) + 3600;
     }
 

@@ -3,6 +3,9 @@ import type { SupabaseTokenVerifier } from '../lib/auth-provider.js';
 import { logger } from '../lib/logger.js';
 
 interface AuthenticatedRequest extends Request {
+  /**
+   * The authenticated user info from Supabase
+   */
   user?: {
     id: string;
   };

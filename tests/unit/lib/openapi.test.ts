@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createOpenApiSpec } from './openapi.js';
+import { createOpenApiSpec } from './../../../src/lib/openapi.js';
 
 describe('createOpenApiSpec', () => {
   it('should generate a valid OpenAPI spec with x-openai-isConsequential', () => {

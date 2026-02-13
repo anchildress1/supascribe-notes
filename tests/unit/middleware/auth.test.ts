@@ -41,6 +41,7 @@ describe('Auth Middleware', () => {
     await middleware(mockReq as Request, mockRes as Response, next);
 
     expect(mockRes.status).toHaveBeenCalledWith(401);
+    expect(mockRes.send).toHaveBeenCalledWith('Unauthorized');
     expect(next).not.toHaveBeenCalled();
   });
 

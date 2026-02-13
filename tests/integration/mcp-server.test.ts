@@ -247,7 +247,13 @@ describe('MCP Server Integration', () => {
 
     expect(initRes.status).toBe(202);
 
-    // 4. Send Initialized Notification
+    // 4. Expect 'message' event which contains the initialize result
+    const initMessage = await readEvent();
+    expect(initMessage.event).toBe('message');
+    const initData = JSON.parse(initMessage.data);
+    expect(initData.result.protocolVersion).toBeDefined();
+
+    // 5. Send Initialized Notification
     await fetch(url.toString(), {
       method: 'POST',
       headers: {

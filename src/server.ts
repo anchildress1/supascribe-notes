@@ -139,7 +139,6 @@ export function createApp(config: Config): express.Express {
       };
 
       // Start the transport - this keeps the connection open
-      // Start the transport - this keeps the connection open
       // transport.start() is already called by server.connect(transport)
       // so we don't need to call it again.
     } catch (error) {

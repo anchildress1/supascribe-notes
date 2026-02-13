@@ -18,23 +18,24 @@ describe('SupabaseTokenVerifier', () => {
   it('verifies Supabase JWT correctly', async () => {
     const verifier = new SupabaseTokenVerifier(mockSupabase);
     // Base64Url encoded payload: {"exp": 1234567890}
-    const base64Payload = Buffer.from(JSON.stringify({ exp: 1234567890 })).toString('base64');
-    const base64UrlPayload = base64Payload
+    const payload = { exp: 1234567890 };
+    const payloadBase64 = Buffer.from(JSON.stringify(payload))
+      .toString('base64')
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
-      .replace(/=+$/, '');
-    const tokenWithPayload = `header.${base64UrlPayload}.signature`;
+      .replace(/=/g, '');
+    const token = `header.${payloadBase64}.signature`;
 
     mockGetUser.mockResolvedValue({
       data: { user: { id: 'user-123', email: 'test@example.com', role: 'authenticated' } },
       error: null,
     });
 
-    const authInfo = await verifier.verifyAccessToken(tokenWithPayload);
+    const authInfo = await verifier.verifyAccessToken(token);
 
-    expect(mockGetUser).toHaveBeenCalledWith(tokenWithPayload);
+    expect(mockGetUser).toHaveBeenCalledWith(token);
     expect(authInfo).toEqual({
-      token: tokenWithPayload,
+      token: token,
       clientId: 'user-123',
       scopes: [],
       expiresAt: 1234567890,

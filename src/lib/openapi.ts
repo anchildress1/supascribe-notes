@@ -17,7 +17,7 @@ export function createOpenApiSpec(serverUrl: string): object {
     info: {
       title: 'Supascribe Notes Action',
       description:
-        'API for writing formatted index cards to Supabase. integrating directly with ChatGPT.',
+        'API for writing formatted index cards to Supabase, integrating directly with ChatGPT.',
       version: '1.0.0',
     },
     servers: [

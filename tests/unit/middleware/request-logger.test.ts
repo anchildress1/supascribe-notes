@@ -52,6 +52,7 @@ describe('requestLogger', () => {
       throw new Error('Finish handler was not registered on res.on');
     }
     const finishCallback = finishCall[1] as () => void;
+    expect(typeof finishCallback).toBe('function');
     finishCallback();
 
     expect(logger.info).toHaveBeenCalledWith(

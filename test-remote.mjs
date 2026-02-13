@@ -13,11 +13,13 @@ if (fs.existsSync('.env')) {
   dotenv.config({ path: '.env' });
 }
 
+// Configuration
+const SERVICE_NAME = 'supascribe-notes-mcp';
+const MCP_SERVER_URL =
+  process.env.MCP_SERVER_URL || `https://${SERVICE_NAME}-placeholder.a.run.app`;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-// Use deployed URL
-const MCP_SERVER_URL = 'https://supascribe-notes-mcp-800441415595.us-east1.run.app/sse';
 
 if (!OPENAI_API_KEY || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.error('Missing env vars. Please check .env');

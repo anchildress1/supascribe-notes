@@ -29,9 +29,12 @@ make install
 
 ### Environment Variables
 
-| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Supabase service role key |
-| `PORT` | ❌ | Server port (default: `8080`) |
-| `PUBLIC_URL` | ✅ | Public URL for OAuth & SSE |
+| Variable                    | Required | Description                   |
+| --------------------------- | -------- | ----------------------------- |
+| `SUPABASE_URL`              | ✅       | Supabase project URL          |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅       | Supabase service role key     |
+| `PORT`                      | ❌       | Server port (default: `8080`) |
+| `PUBLIC_URL`                | ✅       | Public URL for OAuth & SSE    |
 
 ## Authentication
 

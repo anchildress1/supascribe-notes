@@ -6,9 +6,8 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
   issues: write
-  id-token: write
+  pull-requests: write
 
 jobs:
   release-please:
@@ -17,3 +16,4 @@ jobs:
       - uses: googleapis/release-please-action@v4
         with:
           release-type: node
+          token: ${{ github.token }}

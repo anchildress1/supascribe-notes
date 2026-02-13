@@ -144,7 +144,14 @@ export function createApp(config: Config): express.Express {
     } catch (error) {
       logger.error({ error }, 'Failed to initialize SSE session');
       if (!res.headersSent) {
-        res.status(500).json({ error: 'Failed to initialize session' });
+        res.status(500);
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.write(
+          `event: error\ndata: ${JSON.stringify({
+            error: 'Failed to initialize session',
+          })}\n\n`,
+        );
+        res.end();
       }
     }
   });

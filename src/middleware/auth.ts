@@ -101,7 +101,7 @@ export function createAuthMiddleware(authVerifier: SupabaseTokenVerifier, public
         'WWW-Authenticate',
         `Bearer resource_metadata="${resourceMetadataUrl}", error="invalid_token"`,
       );
-      res.type('text/plain').status(401).send('Invalid token');
+      return res.type('text/plain').status(401).send('Invalid token');
     }
   };
 }

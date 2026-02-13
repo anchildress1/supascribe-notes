@@ -25,17 +25,7 @@ export default tseslint.config(
       reportUnusedDisableDirectives: 'error',
       noInlineConfig: false,
     },
-    languageOptions: {
-      globals: {
-        process: 'readonly',
-        console: 'readonly',
-        URL: 'readonly',
-        Buffer: 'readonly',
-        setTimeout: 'readonly',
-        clearTimeout: 'readonly',
-        global: 'readonly',
-      },
-    },
+
   },
   // Test-specific rules
   {

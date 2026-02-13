@@ -101,7 +101,7 @@ gcloud run deploy "$SERVICE_NAME" \
     --set-env-vars "$ENV_VARS"
 
 # If it was a first deploy (or URL changed, unlikely), and we didn't set PUBLIC_URL, update it now
-if [[ -z "$EXISTING_URL" && -z "$PUBLIC_URL" ]]; then
+if [ -z "$EXISTING_URL" ] && [ -z "$PUBLIC_URL" ]; then
     NEW_URL=$(gcloud run services describe "$SERVICE_NAME" \
         --region "$REGION" --project "$PROJECT_ID" --format 'value(status.url)')
     

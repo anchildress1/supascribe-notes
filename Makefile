@@ -1,7 +1,7 @@
 .PHONY: install lint format test test-coverage secrets-scan ai-checks build clean dev
 
 dev:
-	npx tsc 
+
 	npm run dev
 
 install:

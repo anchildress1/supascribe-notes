@@ -6,7 +6,7 @@ import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { OpenAI } from 'openai';
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
-import fs from 'fs';
+import fs from 'node:fs';
 
 // Load .env manually if needed
 if (fs.existsSync('.env')) {

@@ -5,6 +5,7 @@ describe('loadConfig', () => {
   beforeEach(() => {
     vi.stubEnv('SUPABASE_URL', 'http://localhost:54321');
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'test-key');
+    vi.stubEnv('SUPABASE_ANON_KEY', 'test-key');
     vi.stubEnv('PORT', '3000');
   });
 

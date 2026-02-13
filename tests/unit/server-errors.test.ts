@@ -115,8 +115,10 @@ describe('Server Error Handling', () => {
     });
 
     expect(res.status).toBe(500);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toBe('Failed to initialize session');
+    expect(res.headers.get('content-type')).toBe('text/event-stream');
+    const text = await res.text();
+    expect(text).toContain('event: error');
+    expect(text).toContain('"error":"Failed to initialize session"');
   });
 
   it('POST /messages returns 500 if handlePostMessage fails', async () => {

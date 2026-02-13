@@ -78,13 +78,19 @@ describe('Server Error Handling', () => {
   });
 
   it('GET /sse initializes connection and calls start exactly once', async () => {
-    // 1. Make start() hang so connection stays open and we can verify count
-    mocks.start.mockImplementation(() => new Promise(() => {}));
+    // 1. Make start() a controlled promise so we can resolve it later
+    let resolveStart: () => void;
+    const startPromise = new Promise<void>((resolve) => {
+      resolveStart = resolve;
+    });
+    mocks.start.mockImplementation(() => startPromise);
 
-    const _ssePromise = fetch(`${baseUrl}/sse`, {
+    const controller = new AbortController();
+    const ssePromise = fetch(`${baseUrl}/sse`, {
       headers: {
         Authorization: 'Bearer token',
       },
+      signal: controller.signal,
     });
 
     // Give it a moment to run
@@ -93,7 +99,10 @@ describe('Server Error Handling', () => {
     // Verify start was called exactly once (via server.connect)
     expect(mocks.start).toHaveBeenCalledTimes(1);
 
-    // We don't await response because it's hanging
+    // Cleanup: resolve the hanging promise and abort the fetch
+    resolveStart!();
+    controller.abort();
+    await ssePromise.catch(() => {}); // Suppress abort error
   });
 
   it('GET /sse returns 500 if transport start fails', async () => {

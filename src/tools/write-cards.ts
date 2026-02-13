@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { CardInput } from '../schemas/card.js';
+import { logger } from '../lib/logger.js';
 
 interface WriteResult {
   objectID: string;
@@ -12,14 +14,15 @@ export async function handleWriteCards(
   supabase: SupabaseClient,
   cards: CardInput[],
 ): Promise<CallToolResult> {
-  const runId = crypto.randomUUID();
+  const runId = randomUUID();
+  logger.info({ runId, cardCount: cards.length }, 'Starting write_cards execution');
   const results: WriteResult[] = [];
   const errors: string[] = [];
 
   try {
     for (const card of cards) {
       try {
-        const objectID = card.objectID ?? crypto.randomUUID();
+        const objectID = card.objectID ?? randomUUID();
         const now = new Date().toISOString();
 
         const row = {
@@ -54,7 +57,9 @@ export async function handleWriteCards(
         );
 
         if (upsertError) {
-          errors.push(`Card "${card.title}": ${upsertError.message}`);
+          const msg = `Card "${card.title}": ${upsertError.message}`;
+          logger.error({ runId, card: card.title, error: upsertError }, 'Failed to upsert card');
+          errors.push(msg);
           continue;
         }
 
@@ -76,6 +81,7 @@ export async function handleWriteCards(
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
+        logger.error({ runId, card: card.title, error: err }, 'Unexpected error processing card');
         errors.push(`Card "${card.title}": ${message}`);
       }
     }

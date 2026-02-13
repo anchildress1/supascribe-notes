@@ -23,20 +23,35 @@ vi.mock('../../src/lib/supabase.js', () => ({
         insert: vi.fn().mockResolvedValue({ error: null }),
       };
     }),
+    auth: {
+      getUser: vi.fn().mockImplementation(async (token) => {
+        if (token === 'test-token') {
+          return {
+            data: {
+              user: {
+                id: 'test-user',
+                email: 'test@example.com',
+                role: 'authenticated',
+              },
+            },
+            error: null,
+          };
+        }
+        return {
+          data: { user: null },
+          error: { message: 'Invalid token' },
+        };
+      }),
+    },
   }),
 }));
 
 const testConfig: Config = {
   supabaseUrl: 'http://localhost:54321',
   supabaseServiceRoleKey: 'test-key',
-  mcpAuthToken: 'test-auth-token',
+  supabaseAnonKey: 'anon-key',
   port: 0,
-};
-
-const MCP_HEADERS = {
-  'Content-Type': 'application/json',
-  Accept: 'application/json, text/event-stream',
-  Authorization: 'Bearer test-auth-token',
+  publicUrl: 'http://localhost:0',
 };
 
 describe('MCP Server Integration', () => {
@@ -56,75 +71,168 @@ describe('MCP Server Integration', () => {
     server?.close();
   });
 
-  it('GET /healthz returns 200 ok', async () => {
-    const res = await fetch(`${baseUrl}/healthz`, {
-      headers: { Authorization: 'Bearer test-auth-token' },
-    });
+  it('GET /status returns 200 ok', async () => {
+    const res = await fetch(`${baseUrl}/status`);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, unknown>;
     expect(body.status).toBe('ok');
   });
 
-  it('returns 401 without auth token', async () => {
-    const res = await fetch(`${baseUrl}/healthz`);
+  it('GET / returns 200 and HTML help page', async () => {
+    const res = await fetch(`${baseUrl}/`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/html');
+    const text = await res.text();
+    expect(text).toContain('Supabase MCP Server');
+    expect(text).toContain('<!DOCTYPE html>');
+  });
+
+  it('GET / redirects to /sse if Accept: text/event-stream', async () => {
+    const res = await fetch(`${baseUrl}/`, {
+      headers: {
+        Accept: 'text/event-stream',
+      },
+      redirect: 'manual',
+    });
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toBe('/sse');
+  });
+
+  it('GET /auth/authorize returns Consent UI', async () => {
+    const res = await fetch(`${baseUrl}/auth/authorize`);
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toContain('Authorize Access');
+    expect(text).toContain('External Application');
+    expect(text).toContain('approve()');
+    expect(text).toContain('deny()');
+  });
+
+  it('GET /sse/auth/authorize redirects to /auth/authorize', async () => {
+    const res = await fetch(`${baseUrl}/sse/auth/authorize?authorization_id=123`, {
+      redirect: 'manual',
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('/auth/authorize?authorization_id=123');
+  });
+
+  it('GET /sse returns 401 without auth', async () => {
+    const res = await fetch(`${baseUrl}/sse`, {
+      headers: { Accept: 'text/event-stream' },
+    });
     expect(res.status).toBe(401);
   });
 
-  it('POST /mcp with initialize request creates session', async () => {
-    const initPayload = {
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        protocolVersion: '2025-03-26',
-        capabilities: {},
-        clientInfo: { name: 'test-client', version: '1.0.0' },
+  it('GET /sse returns 401 with invalid auth', async () => {
+    const res = await fetch(`${baseUrl}/sse`, {
+      headers: {
+        Accept: 'text/event-stream',
+        Authorization: 'Bearer invalid-token',
       },
-    };
+    });
+    expect(res.status).toBe(401);
+  });
 
-    const res = await fetch(`${baseUrl}/mcp`, {
-      method: 'POST',
-      headers: MCP_HEADERS,
-      body: JSON.stringify(initPayload),
+  it('GET /.well-known/oauth-authorization-server returns metadata', async () => {
+    const res = await fetch(`${baseUrl}/.well-known/oauth-authorization-server`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      authorization_endpoint: string;
+      token_endpoint: string;
+    };
+    expect(body.authorization_endpoint).toBe(`${testConfig.supabaseUrl}/auth/v1/oauth/authorize`);
+    expect(body.token_endpoint).toBe(`${testConfig.supabaseUrl}/auth/v1/oauth/token`);
+  });
+
+  it('GET /.well-known/oauth-protected-resource/sse returns specific metadata', async () => {
+    const res = await fetch(`${baseUrl}/.well-known/oauth-protected-resource/sse`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { resource: string };
+    expect(body.resource).toBe(testConfig.supabaseUrl);
+  });
+
+  it('GET /sse initiates SSE connection', async () => {
+    const res = await fetch(`${baseUrl}/sse`, {
+      headers: {
+        Accept: 'text/event-stream',
+        Authorization: 'Bearer test-token',
+      },
     });
 
     expect(res.status).toBe(200);
-    const sessionId = res.headers.get('mcp-session-id');
-    expect(sessionId).toBeTruthy();
+    expect(res.headers.get('content-type')).toContain('text/event-stream');
+
+    // Cleanup
+    if (res.body) {
+      await res.body.cancel();
+    }
   });
 
-  it('POST /mcp without session or initialize returns 400', async () => {
-    const res = await fetch(`${baseUrl}/mcp`, {
-      method: 'POST',
-      headers: MCP_HEADERS,
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'tools/list',
-        params: {},
-      }),
+  it('full MCP flow: SSE handshake → initialize → list tools', async () => {
+    // 1. Start SSE connection
+    const sseResponse = await fetch(`${baseUrl}/sse`, {
+      headers: {
+        Accept: 'text/event-stream',
+        Authorization: 'Bearer test-token',
+      },
     });
+    expect(sseResponse.status).toBe(200);
 
-    expect(res.status).toBe(400);
-  });
+    if (!sseResponse.body) throw new Error('No response body');
+    const reader = sseResponse.body.getReader();
+    const decoder = new TextDecoder();
 
-  it('full MCP flow: initialize → list tools → call health', async () => {
-    // Helper to parse MCP response (may be JSON or SSE)
-    async function parseMcpResponse(res: Response) {
-      const contentType = res.headers.get('content-type') ?? '';
-      if (contentType.includes('text/event-stream')) {
-        const text = await res.text();
-        const dataLines = text.split('\n').filter((l) => l.startsWith('data: '));
-        const lastData = dataLines[dataLines.length - 1];
-        return JSON.parse(lastData.slice('data: '.length));
+    let endpointUrl = '';
+    let sessionId = '';
+    let buffer = '';
+
+    // Helper to read SSE events
+    async function readEvent(): Promise<{ event: string; data: string }> {
+      while (true) {
+        if (buffer.includes('\n\n')) {
+          const parts = buffer.split('\n\n');
+          const messageBlock = parts[0];
+          buffer = parts.slice(1).join('\n\n');
+
+          const lines = messageBlock.split('\n');
+          let event = '';
+          let data = '';
+
+          for (const line of lines) {
+            if (line.startsWith('event: ')) event = line.slice(7);
+            if (line.startsWith('data: ')) data = line.slice(6);
+          }
+
+          return { event, data };
+        }
+
+        const { done, value } = await reader.read();
+        if (done) {
+          if (buffer.trim()) break;
+          break;
+        }
+        buffer += decoder.decode(value, { stream: true });
       }
-      return res.json();
+      throw new Error('Stream ended without event');
     }
 
-    // Step 1: Initialize
-    const initRes = await fetch(`${baseUrl}/mcp`, {
+    // 2. Expect 'endpoint' event
+    const endpointEvent = await readEvent();
+    expect(endpointEvent.event).toBe('endpoint');
+    endpointUrl = endpointEvent.data;
+    expect(endpointUrl).toContain('/messages?sessionId=');
+
+    const url = new URL(endpointUrl, baseUrl);
+    sessionId = url.searchParams.get('sessionId')!;
+    expect(sessionId).toBeTruthy();
+
+    // 3. Send Initialize Request
+    const initRes = await fetch(url.toString(), {
       method: 'POST',
-      headers: MCP_HEADERS,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test-token',
+      },
       body: JSON.stringify({
         jsonrpc: '2.0',
         id: 1,
@@ -137,24 +245,34 @@ describe('MCP Server Integration', () => {
       }),
     });
 
-    expect(initRes.status).toBe(200);
-    const sessionId = initRes.headers.get('mcp-session-id');
-    expect(sessionId).toBeTruthy();
+    expect(initRes.status).toBe(202);
 
-    // Step 2: Send initialized notification
-    await fetch(`${baseUrl}/mcp`, {
+    // 4. Expect 'message' event which contains the initialize result
+    const initMessage = await readEvent();
+    expect(initMessage.event).toBe('message');
+    const initData = JSON.parse(initMessage.data);
+    expect(initData.result.protocolVersion).toBeDefined();
+
+    // 5. Send Initialized Notification
+    await fetch(url.toString(), {
       method: 'POST',
-      headers: { ...MCP_HEADERS, 'mcp-session-id': sessionId! },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test-token',
+      },
       body: JSON.stringify({
         jsonrpc: '2.0',
         method: 'notifications/initialized',
       }),
     });
 
-    // Step 3: List tools
-    const listRes = await fetch(`${baseUrl}/mcp`, {
+    // 5. List Tools
+    await fetch(url.toString(), {
       method: 'POST',
-      headers: { ...MCP_HEADERS, 'mcp-session-id': sessionId! },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test-token',
+      },
       body: JSON.stringify({
         jsonrpc: '2.0',
         id: 2,
@@ -163,27 +281,58 @@ describe('MCP Server Integration', () => {
       }),
     });
 
-    expect(listRes.status).toBe(200);
-    const listBody = await parseMcpResponse(listRes);
-    const toolNames = listBody.result.tools.map((t: { name: string }) => t.name);
-    expect(toolNames).toContain('health');
-    expect(toolNames).toContain('write_cards');
+    // Read events
+    let foundTools = false;
+    for (let i = 0; i < 2; i++) {
+      const msg = await readEvent();
+      if (msg.event === 'message') {
+        const json = JSON.parse(msg.data);
+        if (json.id === 2 && json.result) {
+          const tools = json.result.tools;
+          expect(tools).toBeDefined();
 
-    // Step 4: Call health tool
-    const healthRes = await fetch(`${baseUrl}/mcp`, {
+          const writeTool = tools.find((t: { name: string }) => t.name === 'write_cards');
+          expect(writeTool).toBeDefined();
+
+          // Debug output for user verification
+          console.log('--- DETECTED TOOL DEFINITION ---');
+          console.log(JSON.stringify(writeTool, null, 2));
+
+          // Verify schema structure per user request
+          expect(writeTool.inputSchema).toBeDefined();
+          expect(writeTool.inputSchema.type).toBe('object');
+          expect(writeTool.inputSchema.properties).toBeDefined();
+          expect(writeTool.inputSchema.properties.cards).toBeDefined();
+          expect(writeTool.inputSchema.properties.cards.type).toBe('array');
+
+          foundTools = true;
+          break;
+        }
+      }
+    }
+
+    expect(foundTools).toBe(true);
+
+    // Close
+    await reader.cancel();
+  });
+
+  it('POST /messages returns 404 for unknown session', async () => {
+    const res = await fetch(`${baseUrl}/messages?sessionId=unknown-session-id`, {
       method: 'POST',
-      headers: { ...MCP_HEADERS, 'mcp-session-id': sessionId! },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test-token',
+      },
       body: JSON.stringify({
         jsonrpc: '2.0',
-        id: 3,
-        method: 'tools/call',
-        params: { name: 'health', arguments: {} },
+        id: 1,
+        method: 'ping',
       }),
     });
 
-    expect(healthRes.status).toBe(200);
-    const healthBody = await parseMcpResponse(healthRes);
-    const content = JSON.parse(healthBody.result.content[0].text);
-    expect(content.status).toBeDefined();
+    expect(res.status).toBe(404);
+    const text = await res.text();
+    expect(text).toContain('Session not found');
   });
 });

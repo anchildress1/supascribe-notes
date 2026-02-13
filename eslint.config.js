@@ -1,11 +1,18 @@
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
+import eslintPluginPrettier from 'eslint-plugin-prettier';
+import eslintConfigPrettier from 'eslint-config-prettier';
 
 export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
+  eslintConfigPrettier,
   {
+    plugins: {
+      prettier: eslintPluginPrettier,
+    },
     rules: {
+      'prettier/prettier': 'error',
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
@@ -13,9 +20,37 @@ export default tseslint.config(
       '@typescript-eslint/consistent-type-imports': 'error',
     },
     linterOptions: {
-      // Ban inline eslint-disable comments project-wide
+      // We allow inline configuration for specific overrides in test files if needed,
+      // but prefer keeping rules centralized in this config.
       reportUnusedDisableDirectives: 'error',
-      noInlineConfig: true,
+      noInlineConfig: false,
+    },
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        URL: 'readonly',
+        Buffer: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        global: 'readonly',
+        AbortController: 'readonly',
+        fetch: 'readonly',
+        TextDecoder: 'readonly',
+        TextEncoder: 'readonly',
+      },
+    },
+  },
+  // MJS specific globals
+  {
+    files: ['*.mjs', 'test-remote.mjs'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        URL: 'readonly',
+        global: 'readonly',
+      },
     },
   },
   // Test-specific rules

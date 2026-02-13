@@ -3,6 +3,7 @@ set -e
 
 # Configuration
 SERVICE_NAME="supascribe-notes-mcp"
+
 REGION="us-east1"
 PORT="8080"
 
@@ -47,7 +48,7 @@ require_env() {
 
 require_env "SUPABASE_URL"
 require_env "SUPABASE_SERVICE_ROLE_KEY"
-require_env "MCP_AUTH_TOKEN"
+require_env "SUPABASE_ANON_KEY"
 
 # Enable required services
 echo "Enabling required Google Cloud APIs..."
@@ -74,6 +75,22 @@ echo "Building: $IMAGE_URI"
 gcloud beta builds submit --tag "$IMAGE_URI" . --project "$PROJECT_ID"
 
 # Deploy to Cloud Run
+# Check if service exists and get URL to set PUBLIC_URL
+EXISTING_URL=$(gcloud run services describe "$SERVICE_NAME" \
+    --region "$REGION" --project "$PROJECT_ID" --format 'value(status.url)' 2>/dev/null || true)
+
+if [ -n "$PUBLIC_URL" ]; then
+    echo "Using configured PUBLIC_URL: $PUBLIC_URL"
+    ENV_VARS="SUPABASE_URL=$SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY,SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY,PUBLIC_URL=$PUBLIC_URL"
+elif [ -n "$EXISTING_URL" ]; then
+    echo "Found existing service URL: $EXISTING_URL"
+    ENV_VARS="SUPABASE_URL=$SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY,SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY,PUBLIC_URL=$EXISTING_URL"
+else
+    echo "First deployment (or service not found)..."
+    ENV_VARS="SUPABASE_URL=$SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY,SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
+fi
+
+# Deploy to Cloud Run
 echo "Deploying to Cloud Run..."
 gcloud run deploy "$SERVICE_NAME" \
     --image "$IMAGE_URI" \
@@ -81,7 +98,19 @@ gcloud run deploy "$SERVICE_NAME" \
     --project "$PROJECT_ID" \
     --allow-unauthenticated \
     --port "$PORT" \
-    --set-env-vars "SUPABASE_URL=$SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY,MCP_AUTH_TOKEN=$MCP_AUTH_TOKEN"
+    --set-env-vars "$ENV_VARS"
+
+# If it was a first deploy (or URL changed, unlikely), and we didn't set PUBLIC_URL, update it now
+if [ -z "$EXISTING_URL" ] && [ -z "$PUBLIC_URL" ]; then
+    NEW_URL=$(gcloud run services describe "$SERVICE_NAME" \
+        --region "$REGION" --project "$PROJECT_ID" --format 'value(status.url)')
+    
+    echo "Updating new service with PUBLIC_URL=$NEW_URL..."
+    gcloud run services update "$SERVICE_NAME" \
+        --region "$REGION" \
+        --project "$PROJECT_ID" \
+        --update-env-vars "PUBLIC_URL=$NEW_URL"
+fi
 
 SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
     --region "$REGION" --project "$PROJECT_ID" --format 'value(status.url)')
@@ -93,5 +122,5 @@ echo "=================================================="
 echo "Service URL: $SERVICE_URL"
 echo ""
 echo "Smoke test:"
-echo "  curl $SERVICE_URL/healthz"
+echo "  curl $SERVICE_URL/status"
 echo "=================================================="

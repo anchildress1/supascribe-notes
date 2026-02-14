@@ -66,5 +66,22 @@ export const WriteCardsInputSchema = z.object({
     .describe('Array of cards to create or update.'),
 });
 
+export const EmptyInputSchema = z.object({});
+
+export const CardIdInputSchema = z.object({
+  id: z.string().uuid().describe('The UUID of the card to lookup.'),
+});
+
+export const SearchCardsInputSchema = z.object({
+  title: z.string().optional().describe('Search for cards matching this title or title fragment.'),
+  category: z.string().optional().describe('Filter by specific category.'),
+  project: z.string().optional().describe('Filter by specific project identifier.'),
+  lvl0: z.array(z.string()).optional().describe('Filter by specific lvl0 tags.'),
+  lvl1: z.array(z.string()).optional().describe('Filter by specific lvl1 tags.'),
+});
+
 export type CardInput = z.infer<typeof CardInputSchema>;
 export type WriteCardsInput = z.infer<typeof WriteCardsInputSchema>;
+export type EmptyInput = z.infer<typeof EmptyInputSchema>;
+export type CardIdInput = z.infer<typeof CardIdInputSchema>;
+export type SearchCardsInput = z.infer<typeof SearchCardsInputSchema>;

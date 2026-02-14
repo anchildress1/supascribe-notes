@@ -1,13 +1,25 @@
 import express from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
-import { WriteCardsInputSchema } from './schemas/card.js';
-import type { WriteCardsInput } from './schemas/card.js';
+import {
+  WriteCardsInputSchema,
+  CardIdInputSchema,
+  EmptyInputSchema,
+  SearchCardsInputSchema,
+} from './schemas/card.js';
+import type { WriteCardsInput, CardIdInput, SearchCardsInput } from './schemas/card.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createSupabaseClient } from './lib/supabase.js';
 import type { Config } from './config.js';
 import { handleHealth } from './tools/health.js';
 import { handleWriteCards } from './tools/write-cards.js';
+import {
+  handleLookupCardById,
+  handleLookupCategories,
+  handleLookupProjects,
+  handleLookupTags,
+  handleSearchCards,
+} from './tools/lookup-tools.js';
 import { logger } from './lib/logger.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { SupabaseTokenVerifier } from './lib/auth-provider.js';
@@ -16,8 +28,6 @@ import { renderAuthPage } from './views/auth-view.js';
 import { renderHelpPage } from './views/help-view.js';
 import { createOpenApiSpec } from './lib/openapi.js';
 import cors from 'cors';
-
-// Rate limiting is handled by the middleware
 
 export function createApp(config: Config): express.Express {
   const supabase = createSupabaseClient(config.supabaseUrl, config.supabaseServiceRoleKey);
@@ -261,6 +271,101 @@ export function createMcpServer(supabase: SupabaseClient): McpServer {
       },
     },
     async ({ cards }: WriteCardsInput) => handleWriteCards(supabase, cards),
+  );
+
+  server.registerTool(
+    'lookup_card_by_id',
+    {
+      title: 'Lookup Card by ID',
+      description: 'Find a specific index card by its UUID',
+      inputSchema: CardIdInputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      _meta: {
+        ui: { visibility: ['model', 'app'] },
+      },
+    },
+    async ({ id }: CardIdInput) => handleLookupCardById(supabase, id),
+  );
+
+  server.registerTool(
+    'lookup_categories',
+    {
+      title: 'Lookup Categories',
+      description: 'Get a list of all unique categories used across all index cards',
+      inputSchema: EmptyInputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      _meta: {
+        ui: { visibility: ['model', 'app'] },
+      },
+    },
+    async () => handleLookupCategories(supabase),
+  );
+
+  server.registerTool(
+    'lookup_projects',
+    {
+      title: 'Lookup Projects',
+      description: 'Get a list of all unique project identifiers used across all index cards',
+      inputSchema: EmptyInputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      _meta: {
+        ui: { visibility: ['model', 'app'] },
+      },
+    },
+    async () => handleLookupProjects(supabase),
+  );
+
+  server.registerTool(
+    'lookup_tags',
+    {
+      title: 'Lookup Tags',
+      description: 'Get a list of all unique lvl0 and lvl1 tags used across all index cards',
+      inputSchema: EmptyInputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      _meta: {
+        ui: { visibility: ['model', 'app'] },
+      },
+    },
+    async () => handleLookupTags(supabase),
+  );
+
+  server.registerTool(
+    'search_cards',
+    {
+      title: 'Search Cards',
+      description: 'Search for index cards using filters (title, category, project, tags)',
+      inputSchema: SearchCardsInputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      _meta: {
+        ui: { visibility: ['model', 'app'] },
+      },
+    },
+    async (filters: SearchCardsInput) => handleSearchCards(supabase, filters),
   );
 
   return server;

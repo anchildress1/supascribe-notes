@@ -19,5 +19,7 @@ describe('Auth View', () => {
     expect(html).toContain('Authorize App');
     expect(html).toContain('https://test.supabase.co');
     expect(html).toContain('anon-key');
+    expect(html).toContain('This page auto-detects new sessions.');
+    expect(html).toContain('I signed in in another tab');
   });
 });

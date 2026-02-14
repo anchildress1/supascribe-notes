@@ -69,6 +69,13 @@ ChatGPT Dev Mode has reported intermittent failures where valid tools are not pi
 If tools are correctly annotated and still hidden, disconnect and reconnect the app in
 ChatGPT settings. This is a known platform issue, not a server bug.
 
+## Auth Consent Page: Cross-Tab Sign-In
+
+The consent page now watches for Supabase auth session changes. If you sign in from another tab on the
+same origin, the authorization page should auto-detect the new session and continue.
+
+If auto-detection does not trigger, use the **"I signed in in another tab"** button to force a re-check.
+
 ### Full Verification Checklist (MCP + OpenAPI)
 
 1. **Confirm deployed version changed**

@@ -1,0 +1,46 @@
+# Files and directories not required for `gcloud builds submit` / Cloud Run deploy.
+# Keep the upload context focused on build/runtime inputs used by Dockerfile.
+
+# VCS / platform metadata
+.git
+.github
+
+# Local env / temp
+.env
+.env.local
+.env.test
+.env.example
+.DS_Store
+*.tmp
+.temp/
+commit.tmp
+index.tmp
+
+# Local build/test artifacts
+node_modules
+dist
+coverage
+
+# Source not needed for image build
+docs
+tests
+supabase
+*.md
+LICENSE
+CHANGELOG.md
+
+# Local tooling only
+Makefile
+lefthook.yml
+commitlint.config.js
+eslint.config.js
+vitest.config.ts
+.prettierignore
+.prettierrc
+.secretlintignore
+.secretlintrc.json
+
+# Local helper scripts not used in container build
+deploy.sh
+verify-sse.sh
+test-remote.mjs

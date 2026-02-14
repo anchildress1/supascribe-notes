@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createApp } from '../../src/server.js';
 import type { Config } from '../../src/config.js';
-import type { Server } from 'node:http';
+import { invokeApp, waitForNextTick } from '../helpers/http.js';
 
 const testConfig: Config = {
   supabaseUrl: 'http://localhost:54321',
@@ -9,6 +9,7 @@ const testConfig: Config = {
   supabaseAnonKey: 'anon-key',
   port: 0, // Random port
   publicUrl: 'http://localhost:0',
+  serverVersion: '1.0.0',
 };
 
 // Mock dependencies
@@ -56,25 +57,11 @@ vi.mock('@modelcontextprotocol/sdk/server/sse.js', () => {
 });
 
 describe('Server Error Handling', () => {
-  let server: Server;
-  let baseUrl: string;
+  let app: ReturnType<typeof createApp>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    const app = createApp(testConfig);
-
-    await new Promise<void>((resolve) => {
-      server = app.listen(0, () => {
-        const address = server.address();
-        const port = typeof address === 'object' && address ? address.port : 0;
-        baseUrl = `http://localhost:${port}`;
-        resolve();
-      });
-    });
-  });
-
-  afterEach(() => {
-    server?.close();
+    app = createApp(testConfig);
   });
 
   it('GET /sse initializes connection and calls start exactly once', async () => {
@@ -85,38 +72,38 @@ describe('Server Error Handling', () => {
     });
     mocks.start.mockImplementation(() => startPromise);
 
-    const controller = new AbortController();
-    const ssePromise = fetch(`${baseUrl}/sse`, {
-      headers: {
-        Authorization: 'Bearer token',
+    const { res } = await invokeApp(
+      app,
+      {
+        method: 'GET',
+        url: '/sse',
+        headers: { authorization: 'Bearer token' },
       },
-      signal: controller.signal,
-    });
+      { waitForEnd: false },
+    );
 
-    // Give it a moment to run
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await waitForNextTick();
 
     // Verify start was called exactly once (via server.connect)
     expect(mocks.start).toHaveBeenCalledTimes(1);
 
     // Cleanup: resolve the hanging promise and abort the fetch
     resolveStart!();
-    controller.abort();
-    await ssePromise.catch(() => {}); // Suppress abort error
+    res.emit('close');
   });
 
   it('GET /sse returns 500 if transport start fails', async () => {
     mocks.start.mockRejectedValue(new Error('Failed to initialize session'));
 
-    const res = await fetch(`${baseUrl}/sse`, {
-      headers: {
-        Authorization: 'Bearer token',
-      },
+    const { res } = await invokeApp(app, {
+      method: 'GET',
+      url: '/sse',
+      headers: { authorization: 'Bearer token' },
     });
 
-    expect(res.status).toBe(500);
-    expect(res.headers.get('content-type')).toBe('text/event-stream');
-    const text = await res.text();
+    expect(res.statusCode).toBe(500);
+    expect(res._getHeaders()['content-type']).toBe('text/event-stream');
+    const text = res._getData();
     expect(text).toContain('event: error');
     expect(text).toContain('"error":"Failed to initialize session"');
   });
@@ -126,30 +113,36 @@ describe('Server Error Handling', () => {
     mocks.start.mockResolvedValue(undefined);
 
     // 2. Start SSE connection (wait for it to settle)
-    const _ssePromise = fetch(`${baseUrl}/sse`, {
-      headers: {
-        Authorization: 'Bearer token',
+    const { res: sseRes } = await invokeApp(
+      app,
+      {
+        method: 'GET',
+        url: '/sse',
+        headers: { authorization: 'Bearer token' },
       },
-    });
+      { waitForEnd: false },
+    );
 
-    // Give it a moment to run and register session
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await waitForNextTick();
 
     // 3. Mock handlePostMessage failure
     mocks.handlePostMessage.mockRejectedValue(new Error('Handle failed'));
 
     // 4. Send POST message
-    const res = await fetch(`${baseUrl}/messages?sessionId=test-session`, {
+    const { res } = await invokeApp(app, {
       method: 'POST',
+      url: '/messages?sessionId=test-session',
       headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer token',
+        'content-type': 'application/json',
+        authorization: 'Bearer token',
       },
-      body: JSON.stringify({ jsonrpc: '2.0', method: 'ping' }),
+      body: { jsonrpc: '2.0', method: 'ping' },
     });
 
-    expect(res.status).toBe(500);
-    const body = (await res.json()) as { error: string };
+    expect(res.statusCode).toBe(500);
+    const body = res._getJSON() as { error: string };
     expect(body.error).toBe('Internal server error');
+
+    sseRes.emit('close');
   });
 });

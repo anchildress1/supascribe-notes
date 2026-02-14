@@ -1,13 +1,25 @@
 import express from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
-import { WriteCardsInputSchema } from './schemas/card.js';
-import type { WriteCardsInput } from './schemas/card.js';
+import {
+  WriteCardsInputSchema,
+  CardIdInputSchema,
+  EmptyInputSchema,
+  SearchCardsInputSchema,
+} from './schemas/card.js';
+import type { WriteCardsInput, CardIdInput, SearchCardsInput } from './schemas/card.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createSupabaseClient } from './lib/supabase.js';
 import type { Config } from './config.js';
 import { handleHealth } from './tools/health.js';
 import { handleWriteCards } from './tools/write-cards.js';
+import {
+  handleLookupCardById,
+  handleLookupCategories,
+  handleLookupProjects,
+  handleLookupTags,
+  handleSearchCards,
+} from './tools/lookup-tools.js';
 import { logger } from './lib/logger.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { SupabaseTokenVerifier } from './lib/auth-provider.js';
@@ -16,8 +28,26 @@ import { renderAuthPage } from './views/auth-view.js';
 import { renderHelpPage } from './views/help-view.js';
 import { createOpenApiSpec } from './lib/openapi.js';
 import cors from 'cors';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
-// Rate limiting is handled by the middleware
+function sendToolResult(res: express.Response, result: CallToolResult): void {
+  if (result.isError) {
+    const errorText = result.content[0].type === 'text' ? result.content[0].text : 'Unknown error';
+    try {
+      res.status(500).json(JSON.parse(errorText));
+    } catch {
+      res.status(500).json({ error: errorText });
+    }
+    return;
+  }
+
+  const successText = result.content[0].type === 'text' ? result.content[0].text : '{}';
+  try {
+    res.json(JSON.parse(successText));
+  } catch {
+    res.json({ result: successText });
+  }
+}
 
 export function createApp(config: Config): express.Express {
   const supabase = createSupabaseClient(config.supabaseUrl, config.supabaseServiceRoleKey);
@@ -27,7 +57,11 @@ export function createApp(config: Config): express.Express {
 
   // Health check
   app.get('/status', (_req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      version: config.serverVersion,
+    });
   });
 
   // Enable CORS
@@ -47,7 +81,9 @@ export function createApp(config: Config): express.Express {
 
   // OpenAPI Spec
   app.get('/openapi.json', (req, res) => {
-    const spec = createOpenApiSpec(config.publicUrl);
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.set('Pragma', 'no-cache');
+    const spec = createOpenApiSpec(config.publicUrl, config.serverVersion);
     res.json(spec);
   });
 
@@ -71,6 +107,8 @@ export function createApp(config: Config): express.Express {
 
   // OAuth Discovery Endpoint
   app.get('/.well-known/oauth-authorization-server', (req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.set('Pragma', 'no-cache');
     res.json({
       issuer: `${config.supabaseUrl}/auth/v1`,
       authorization_endpoint: `${config.supabaseUrl}/auth/v1/oauth/authorize`,
@@ -86,6 +124,8 @@ export function createApp(config: Config): express.Express {
 
   // OAuth Protected Resource Metadata
   app.get('/.well-known/oauth-protected-resource', (_req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.set('Pragma', 'no-cache');
     res.json({
       resource: config.supabaseUrl,
       authorization_servers: [`${config.supabaseUrl}/auth/v1`],
@@ -96,6 +136,8 @@ export function createApp(config: Config): express.Express {
 
   // SSE specific OAuth Protected Resource Metadata
   app.get('/.well-known/oauth-protected-resource/sse', (_req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.set('Pragma', 'no-cache');
     res.json({
       resource: config.supabaseUrl,
       authorization_servers: [`${config.supabaseUrl}/auth/v1`],
@@ -123,7 +165,7 @@ export function createApp(config: Config): express.Express {
     // Create a new transport for this connection
     // The endpoint URL will be where clients send messages
     const transport = new SSEServerTransport('/messages', res);
-    const server = createMcpServer(supabase);
+    const server = createMcpServer(supabase, config.serverVersion);
 
     try {
       // Connect first to ensure everything is set up
@@ -168,25 +210,76 @@ export function createApp(config: Config): express.Express {
 
       // Reuse the MCP tool logic
       const result = await handleWriteCards(supabase, bodyResult.data.cards);
+      sendToolResult(res, result);
+    } catch (err) {
+      logger.error({ error: err }, 'REST write-cards failed');
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
 
-      // Unwrap MCP result
-      if (result.isError) {
-        const errorText =
-          result.content[0].type === 'text' ? result.content[0].text : 'Unknown error';
-        // Try to parse if it's JSON
-        try {
-          const parsed = JSON.parse(errorText);
-          res.status(500).json(parsed);
-        } catch {
-          res.status(500).json({ error: errorText });
-        }
+  app.post('/api/lookup-card-by-id', authenticate, async (req, res) => {
+    try {
+      logger.info('Received lookup-card-by-id request from ChatGPT/App');
+      const bodyResult = CardIdInputSchema.safeParse(req.body);
+      if (!bodyResult.success) {
+        res.status(400).json({ error: 'Validation failed', details: bodyResult.error });
         return;
       }
 
-      const successText = result.content[0].type === 'text' ? result.content[0].text : '{}';
-      res.json(JSON.parse(successText));
+      const result = await handleLookupCardById(supabase, bodyResult.data.id);
+      sendToolResult(res, result);
     } catch (err) {
-      logger.error({ error: err }, 'REST write-cards failed');
+      logger.error({ error: err }, 'REST lookup-card-by-id failed');
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/lookup-categories', authenticate, async (_req, res) => {
+    try {
+      logger.info('Received lookup-categories request from ChatGPT/App');
+      const result = await handleLookupCategories(supabase);
+      sendToolResult(res, result);
+    } catch (err) {
+      logger.error({ error: err }, 'REST lookup-categories failed');
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/lookup-projects', authenticate, async (_req, res) => {
+    try {
+      logger.info('Received lookup-projects request from ChatGPT/App');
+      const result = await handleLookupProjects(supabase);
+      sendToolResult(res, result);
+    } catch (err) {
+      logger.error({ error: err }, 'REST lookup-projects failed');
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/lookup-tags', authenticate, async (_req, res) => {
+    try {
+      logger.info('Received lookup-tags request from ChatGPT/App');
+      const result = await handleLookupTags(supabase);
+      sendToolResult(res, result);
+    } catch (err) {
+      logger.error({ error: err }, 'REST lookup-tags failed');
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/search-cards', authenticate, async (req, res) => {
+    try {
+      logger.info('Received search-cards request from ChatGPT/App');
+      const bodyResult = SearchCardsInputSchema.safeParse(req.body);
+      if (!bodyResult.success) {
+        res.status(400).json({ error: 'Validation failed', details: bodyResult.error });
+        return;
+      }
+
+      const result = await handleSearchCards(supabase, bodyResult.data);
+      sendToolResult(res, result);
+    } catch (err) {
+      logger.error({ error: err }, 'REST search-cards failed');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -220,10 +313,10 @@ export function createApp(config: Config): express.Express {
   return app;
 }
 
-export function createMcpServer(supabase: SupabaseClient): McpServer {
+export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0'): McpServer {
   const server = new McpServer({
     name: 'supascribe-notes-mcp',
-    version: '1.0.0',
+    version: serverVersion,
   });
 
   server.registerTool(
@@ -249,7 +342,7 @@ export function createMcpServer(supabase: SupabaseClient): McpServer {
     {
       title: 'Write Index Cards',
       description: 'Validate and upsert index cards to Supabase with revision history',
-      inputSchema: WriteCardsInputSchema.shape,
+      inputSchema: WriteCardsInputSchema,
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -261,6 +354,101 @@ export function createMcpServer(supabase: SupabaseClient): McpServer {
       },
     },
     async ({ cards }: WriteCardsInput) => handleWriteCards(supabase, cards),
+  );
+
+  server.registerTool(
+    'lookup_card_by_id',
+    {
+      title: 'Lookup Card by ID',
+      description: 'Find a specific index card by its UUID',
+      inputSchema: CardIdInputSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      _meta: {
+        ui: { visibility: ['model', 'app'] },
+      },
+    },
+    async ({ id }: CardIdInput) => handleLookupCardById(supabase, id),
+  );
+
+  server.registerTool(
+    'lookup_categories',
+    {
+      title: 'Lookup Categories',
+      description: 'Get a list of all unique categories used across all index cards',
+      inputSchema: EmptyInputSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      _meta: {
+        ui: { visibility: ['model', 'app'] },
+      },
+    },
+    async () => handleLookupCategories(supabase),
+  );
+
+  server.registerTool(
+    'lookup_projects',
+    {
+      title: 'Lookup Projects',
+      description: 'Get a list of all unique project identifiers used across all index cards',
+      inputSchema: EmptyInputSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      _meta: {
+        ui: { visibility: ['model', 'app'] },
+      },
+    },
+    async () => handleLookupProjects(supabase),
+  );
+
+  server.registerTool(
+    'lookup_tags',
+    {
+      title: 'Lookup Tags',
+      description: 'Get a list of all unique lvl0 and lvl1 tags used across all index cards',
+      inputSchema: EmptyInputSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      _meta: {
+        ui: { visibility: ['model', 'app'] },
+      },
+    },
+    async () => handleLookupTags(supabase),
+  );
+
+  server.registerTool(
+    'search_cards',
+    {
+      title: 'Search Cards',
+      description: 'Search for index cards using filters (title, category, project, tags)',
+      inputSchema: SearchCardsInputSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      _meta: {
+        ui: { visibility: ['model', 'app'] },
+      },
+    },
+    async (filters: SearchCardsInput) => handleSearchCards(supabase, filters),
   );
 
   return server;

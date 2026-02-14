@@ -56,6 +56,26 @@ export const CardInputSchema = z.object({
     .min(1, 'signal must be between 1 and 5')
     .max(5, 'signal must be between 1 and 5')
     .describe('Relevance score or importance signal, from 1 (low) to 5 (high).'),
+  created_at: z
+    .preprocess(
+      (value) => {
+        if (value === null || value === undefined) return undefined;
+        if (typeof value === 'string') {
+          const trimmed = value.trim();
+          return trimmed.length === 0 ? undefined : trimmed;
+        }
+        return value;
+      },
+      z
+        .string()
+        .refine((value) => !Number.isNaN(Date.parse(value)), {
+          message: 'created_at must be a valid datetime string',
+        })
+        .optional(),
+    )
+    .describe(
+      'Optional historical creation timestamp. If provided, it will be normalized to ISO-8601 UTC before upsert.',
+    ),
 });
 
 export const WriteCardsInputSchema = z.object({
@@ -66,5 +86,53 @@ export const WriteCardsInputSchema = z.object({
     .describe('Array of cards to create or update.'),
 });
 
+export const EmptyInputSchema = z.object({});
+
+export const CardIdInputSchema = z.object({
+  id: z.string().uuid().describe('The UUID of the card to lookup.'),
+});
+
+export const SearchCardsInputSchema = z
+  .object({
+    title: z
+      .string()
+      .trim()
+      .min(1, 'title must not be empty')
+      .optional()
+      .describe('Search for cards matching this title or title fragment.'),
+    category: z
+      .string()
+      .trim()
+      .min(1, 'category must not be empty')
+      .optional()
+      .describe('Filter by specific category.'),
+    project: z
+      .string()
+      .trim()
+      .min(1, 'project must not be empty')
+      .optional()
+      .describe('Filter by specific project identifier.'),
+    lvl0: z
+      .array(z.string().trim().min(1, 'lvl0 tag must not be empty'))
+      .optional()
+      .describe('Filter by specific lvl0 tags.'),
+    lvl1: z
+      .array(z.string().trim().min(1, 'lvl1 tag must not be empty'))
+      .optional()
+      .describe('Filter by specific lvl1 tags.'),
+  })
+  .refine(
+    (data) =>
+      Boolean(data.title) ||
+      Boolean(data.category) ||
+      Boolean(data.project) ||
+      (data.lvl0?.length ?? 0) > 0 ||
+      (data.lvl1?.length ?? 0) > 0,
+    { message: 'At least one search filter must be provided.' },
+  );
+
 export type CardInput = z.infer<typeof CardInputSchema>;
 export type WriteCardsInput = z.infer<typeof WriteCardsInputSchema>;
+export type EmptyInput = z.infer<typeof EmptyInputSchema>;
+export type CardIdInput = z.infer<typeof CardIdInputSchema>;
+export type SearchCardsInput = z.infer<typeof SearchCardsInputSchema>;

@@ -4,6 +4,7 @@ export interface Config {
   supabaseAnonKey: string;
   port: number;
   publicUrl: string;
+  serverVersion: string;
 }
 
 export function loadConfig(): Config {
@@ -28,6 +29,7 @@ export function loadConfig(): Config {
     supabaseAnonKey,
     port,
     publicUrl: process.env.PUBLIC_URL || `http://localhost:${port}`,
+    serverVersion: process.env.SERVER_VERSION || '1.0.0',
   };
 }
 

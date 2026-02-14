@@ -4,10 +4,15 @@ A TypeScript MCP server that writes index cards to Supabase, deployed on Google 
 
 ## MCP Tools
 
-| Tool          | Description                                           |
-| ------------- | ----------------------------------------------------- |
-| `health`      | Check server status and Supabase connectivity         |
-| `write_cards` | Validate and upsert index cards with revision history |
+| Tool                | Description                                                     |
+| ------------------- | --------------------------------------------------------------- |
+| `health`            | Check server status and Supabase connectivity                   |
+| `write_cards`       | Validate and upsert index cards with revision history           |
+| `lookup_card_by_id` | Find a specific index card by UUID                              |
+| `lookup_categories` | Get all unique categories used across cards                     |
+| `lookup_projects`   | Get all unique project identifiers used across cards            |
+| `lookup_tags`       | Get all unique lvl0/lvl1 tags used across cards                 |
+| `search_cards`      | Search cards by title, category, project, and hierarchical tags |
 
 ## Architecture
 
@@ -29,12 +34,15 @@ make install
 
 ### Environment Variables
 
-| Variable                    | Required | Description                   |
-| --------------------------- | -------- | ----------------------------- |
-| `SUPABASE_URL`              | ✅       | Supabase project URL          |
-| `SUPABASE_SERVICE_ROLE_KEY` | ✅       | Supabase service role key     |
-| `PORT`                      | ❌       | Server port (default: `8080`) |
-| `PUBLIC_URL`                | ✅       | Public URL for OAuth & SSE    |
+| Variable                    | Required | Description                                                          |
+| --------------------------- | -------- | -------------------------------------------------------------------- |
+| `SUPABASE_URL`              | ✅       | Supabase project URL                                                 |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅       | Supabase service role key                                            |
+| `SUPABASE_ANON_KEY`         | ✅       | Supabase anon key (auth UI)                                          |
+| `SUPABASE_ACCESS_TOKEN`     | ❌       | Supabase CLI/MCP token (required only to apply remote migrations)    |
+| `PORT`                      | ❌       | Server port (default: `8080`)                                        |
+| `PUBLIC_URL`                | ✅       | Public URL for OAuth & SSE                                           |
+| `SERVER_VERSION`            | ❌       | MCP/OpenAPI version hint for client cache busting (default: `1.0.0`) |
 
 ## Authentication
 
@@ -45,6 +53,19 @@ This server uses **Supabase Auth** via OAuth 2.0 for all MCP operations. MCP cli
 
 Standard `Authorization: Bearer <token>` header is required for all SSE and message endpoints.
 
+## ChatGPT SDK Endpoints
+
+The OpenAPI surface at `/openapi.json` exposes these tool-compatible REST endpoints:
+
+- `POST /api/write-cards`
+- `POST /api/lookup-card-by-id`
+- `GET /api/lookup-categories`
+- `GET /api/lookup-projects`
+- `GET /api/lookup-tags`
+- `POST /api/search-cards`
+
+When adding/changing tools, bump `SERVER_VERSION` before deploy so ChatGPT refreshes cached tool metadata.
+
 ## Database Schema
 
 Apply migrations in order:
@@ -54,6 +75,9 @@ Apply migrations in order:
 psql < supabase/migrations/001_create_cards.sql
 psql < supabase/migrations/002_create_card_revisions.sql
 psql < supabase/migrations/003_create_generation_runs.sql
+psql < supabase/migrations/004_add_lookup_indexes.sql
+psql < supabase/migrations/005_add_discovery_views.sql
+psql < supabase/migrations/006_secure_discovery_views.sql
 ```
 
 ## Development
@@ -101,7 +125,7 @@ After deployment, verify the service is running:
 ```bash
 # Replace with your deployed Cloud Run service URL
 # You can find this in the Cloud Run console or with:
-# gcloud run services describe supascribe-notes-mcp --region YOUR_REGION --format='value(status.url)'
+# gcloud run services describe supascribe-notes --region YOUR_REGION --format='value(status.url)'
 SERVICE_URL="https://your-service-url"
 
 # 1. Health check (Public)
@@ -134,7 +158,7 @@ To fully test the MCP functionality, configure your MCP client (like Claude Desk
   "projects": ["string"],
   "category": "string (required)",
   "signal": "number 1–5 (required)",
-  "created_at": "timestamptz (auto)",
+  "created_at": "timestamptz (optional input for historical imports; normalized on write)",
   "updated_at": "timestamptz (auto)"
 }
 ```

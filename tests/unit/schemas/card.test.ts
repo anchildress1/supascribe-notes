@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { CardInputSchema, WriteCardsInputSchema, TagsSchema } from '../../../src/schemas/card.js';
+import {
+  CardInputSchema,
+  WriteCardsInputSchema,
+  TagsSchema,
+  SearchCardsInputSchema,
+} from '../../../src/schemas/card.js';
 
 describe('TagsSchema', () => {
   it('accepts empty object', () => {
@@ -88,6 +93,17 @@ describe('CardInputSchema', () => {
   it('rejects invalid objectID format', () => {
     expect(() => CardInputSchema.parse({ ...validCard, objectID: 'not-a-uuid' })).toThrow();
   });
+
+  it('accepts empty created_at by defaulting it', () => {
+    const result = CardInputSchema.parse({ ...validCard, created_at: '   ' });
+    expect(result.created_at).toBeUndefined();
+  });
+
+  it('accepts created_at when provided', () => {
+    const created_at = '2020-01-01T00:00:00Z';
+    const result = CardInputSchema.parse({ ...validCard, created_at: `  ${created_at}  ` });
+    expect(result.created_at).toBe(created_at);
+  });
 });
 
 describe('WriteCardsInputSchema', () => {
@@ -112,5 +128,16 @@ describe('WriteCardsInputSchema', () => {
   it('rejects more than 50 cards', () => {
     const cards = Array.from({ length: 51 }, () => validCard);
     expect(() => WriteCardsInputSchema.parse({ cards })).toThrow();
+  });
+});
+
+describe('SearchCardsInputSchema', () => {
+  it('accepts at least one filter', () => {
+    const result = SearchCardsInputSchema.parse({ title: 'Test' });
+    expect(result.title).toBe('Test');
+  });
+
+  it('rejects empty filters', () => {
+    expect(() => SearchCardsInputSchema.parse({})).toThrow();
   });
 });

@@ -74,6 +74,9 @@ Apply migrations in order:
 psql < supabase/migrations/001_create_cards.sql
 psql < supabase/migrations/002_create_card_revisions.sql
 psql < supabase/migrations/003_create_generation_runs.sql
+psql < supabase/migrations/004_add_lookup_indexes.sql
+psql < supabase/migrations/005_add_discovery_views.sql
+psql < supabase/migrations/006_secure_discovery_views.sql
 ```
 
 ## Development

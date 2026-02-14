@@ -39,6 +39,7 @@ make install
 | `SUPABASE_URL`              | ✅       | Supabase project URL                                                 |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅       | Supabase service role key                                            |
 | `SUPABASE_ANON_KEY`         | ✅       | Supabase anon key (auth UI)                                          |
+| `SUPABASE_ACCESS_TOKEN`     | ❌       | Supabase CLI/MCP token (required only to apply remote migrations)    |
 | `PORT`                      | ❌       | Server port (default: `8080`)                                        |
 | `PUBLIC_URL`                | ✅       | Public URL for OAuth & SSE                                           |
 | `SERVER_VERSION`            | ❌       | MCP/OpenAPI version hint for client cache busting (default: `1.0.0`) |

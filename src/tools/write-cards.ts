@@ -24,6 +24,7 @@ export async function handleWriteCards(
       try {
         const objectID = card.objectID ?? randomUUID();
         const now = new Date().toISOString();
+        const createdAt = card.created_at ? new Date(card.created_at).toISOString() : undefined;
 
         const row = {
           objectID,
@@ -35,6 +36,7 @@ export async function handleWriteCards(
           projects: card.projects,
           category: card.category,
           signal: card.signal,
+          ...(createdAt ? { created_at: createdAt } : {}),
           updated_at: now,
         };
 
@@ -48,13 +50,9 @@ export async function handleWriteCards(
         const isUpdate = !!existing;
 
         // Upsert card
-        const { error: upsertError } = await supabase.from('cards').upsert(
-          {
-            ...row,
-            ...(isUpdate ? {} : { created_at: now }),
-          },
-          { onConflict: 'objectID' },
-        );
+        const { error: upsertError } = await supabase
+          .from('cards')
+          .upsert(row, { onConflict: 'objectID' });
 
         if (upsertError) {
           const msg = `Card "${card.title}": ${upsertError.message}`;

@@ -147,4 +147,26 @@ describe('handleWriteCards', () => {
     const body = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
     expect(body.error).toBe('Database down');
   });
+
+  it('normalizes provided created_at for historical uploads', async () => {
+    const supabase = createMockSupabase();
+    const card: CardInput = {
+      ...validCard,
+      created_at: '2020-01-01T00:00:00-05:00',
+    };
+
+    await handleWriteCards(supabase, [card]);
+
+    const upsertPayload = supabase._mocks.upsertMock.mock.calls[0]?.[0] as Record<string, string>;
+    expect(upsertPayload.created_at).toBe('2020-01-01T05:00:00.000Z');
+  });
+
+  it('omits created_at when not provided to allow database default', async () => {
+    const supabase = createMockSupabase();
+
+    await handleWriteCards(supabase, [validCard]);
+
+    const upsertPayload = supabase._mocks.upsertMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(upsertPayload).not.toHaveProperty('created_at');
+  });
 });

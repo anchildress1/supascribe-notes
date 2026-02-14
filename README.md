@@ -134,7 +134,7 @@ To fully test the MCP functionality, configure your MCP client (like Claude Desk
   "projects": ["string"],
   "category": "string (required)",
   "signal": "number 1–5 (required)",
-  "created_at": "timestamptz (auto)",
+  "created_at": "timestamptz (optional input for historical imports; normalized on write)",
   "updated_at": "timestamptz (auto)"
 }
 ```

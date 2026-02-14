@@ -56,6 +56,17 @@ export const CardInputSchema = z.object({
     .min(1, 'signal must be between 1 and 5')
     .max(5, 'signal must be between 1 and 5')
     .describe('Relevance score or importance signal, from 1 (low) to 5 (high).'),
+  created_at: z
+    .string()
+    .trim()
+    .min(1, 'created_at must not be empty')
+    .refine((value) => !Number.isNaN(Date.parse(value)), {
+      message: 'created_at must be a valid datetime string',
+    })
+    .optional()
+    .describe(
+      'Optional historical creation timestamp. If provided, it will be normalized to ISO-8601 UTC before upsert.',
+    ),
 });
 
 export const WriteCardsInputSchema = z.object({

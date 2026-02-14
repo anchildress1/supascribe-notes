@@ -49,7 +49,16 @@ require_env() {
 require_env "SUPABASE_URL"
 require_env "SUPABASE_SERVICE_ROLE_KEY"
 require_env "SUPABASE_ANON_KEY"
-SERVER_VERSION_VALUE="${SERVER_VERSION:-1.0.0}"
+
+# SERVER_VERSION is used to bust client caches (e.g., ChatGPT tool metadata).
+# If not explicitly set, default to the current git commit SHA.
+if [ -n "$SERVER_VERSION" ]; then
+    SERVER_VERSION_VALUE="$SERVER_VERSION"
+elif command -v git &> /dev/null && git rev-parse --is-inside-work-tree &> /dev/null; then
+    SERVER_VERSION_VALUE="$(git rev-parse --short HEAD)"
+else
+    SERVER_VERSION_VALUE="1.0.0"
+fi
 
 # Enable required services
 echo "Enabling required Google Cloud APIs..."

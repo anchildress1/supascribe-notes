@@ -259,7 +259,7 @@ export function createMcpServer(supabase: SupabaseClient): McpServer {
     {
       title: 'Write Index Cards',
       description: 'Validate and upsert index cards to Supabase with revision history',
-      inputSchema: WriteCardsInputSchema.shape,
+      inputSchema: WriteCardsInputSchema,
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -278,7 +278,7 @@ export function createMcpServer(supabase: SupabaseClient): McpServer {
     {
       title: 'Lookup Card by ID',
       description: 'Find a specific index card by its UUID',
-      inputSchema: CardIdInputSchema.shape,
+      inputSchema: CardIdInputSchema,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -297,7 +297,7 @@ export function createMcpServer(supabase: SupabaseClient): McpServer {
     {
       title: 'Lookup Categories',
       description: 'Get a list of all unique categories used across all index cards',
-      inputSchema: EmptyInputSchema.shape,
+      inputSchema: EmptyInputSchema,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -316,7 +316,7 @@ export function createMcpServer(supabase: SupabaseClient): McpServer {
     {
       title: 'Lookup Projects',
       description: 'Get a list of all unique project identifiers used across all index cards',
-      inputSchema: EmptyInputSchema.shape,
+      inputSchema: EmptyInputSchema,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -335,7 +335,7 @@ export function createMcpServer(supabase: SupabaseClient): McpServer {
     {
       title: 'Lookup Tags',
       description: 'Get a list of all unique lvl0 and lvl1 tags used across all index cards',
-      inputSchema: EmptyInputSchema.shape,
+      inputSchema: EmptyInputSchema,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -354,7 +354,7 @@ export function createMcpServer(supabase: SupabaseClient): McpServer {
     {
       title: 'Search Cards',
       description: 'Search for index cards using filters (title, category, project, tags)',
-      inputSchema: SearchCardsInputSchema.shape,
+      inputSchema: SearchCardsInputSchema,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,

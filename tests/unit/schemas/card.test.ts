@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { CardInputSchema, WriteCardsInputSchema, TagsSchema } from '../../../src/schemas/card.js';
+import {
+  CardInputSchema,
+  WriteCardsInputSchema,
+  TagsSchema,
+  SearchCardsInputSchema,
+} from '../../../src/schemas/card.js';
 
 describe('TagsSchema', () => {
   it('accepts empty object', () => {
@@ -112,5 +117,16 @@ describe('WriteCardsInputSchema', () => {
   it('rejects more than 50 cards', () => {
     const cards = Array.from({ length: 51 }, () => validCard);
     expect(() => WriteCardsInputSchema.parse({ cards })).toThrow();
+  });
+});
+
+describe('SearchCardsInputSchema', () => {
+  it('accepts at least one filter', () => {
+    const result = SearchCardsInputSchema.parse({ title: 'Test' });
+    expect(result.title).toBe('Test');
+  });
+
+  it('rejects empty filters', () => {
+    expect(() => SearchCardsInputSchema.parse({})).toThrow();
   });
 });

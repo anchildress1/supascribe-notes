@@ -1,8 +1,7 @@
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
-import type { Express } from 'express';
-import type { Server } from 'node:http';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { createApp } from '../../src/server.js';
 import type { Config } from '../../src/config.js';
+import { invokeApp } from '../helpers/http.js';
 
 // Mock Supabase client
 const mockCards = [
@@ -103,24 +102,16 @@ const testConfig: Config = {
 };
 
 describe('Lookup Tools Integration', () => {
-  let app: Express;
-  let server: Server;
-  let baseUrl: string;
+  let app: ReturnType<typeof createApp>;
 
   beforeAll(async () => {
     app = createApp(testConfig);
-    server = app.listen(0);
-    const address = server.address();
-    const port = typeof address === 'object' && address ? address.port : 0;
-    baseUrl = `http://localhost:${port}`;
-  });
-
-  afterAll(() => {
-    server?.close();
   });
 
   it('server starts and has status endpoint', async () => {
-    const res = await fetch(`${baseUrl}/status`);
-    expect(res.status).toBe(200);
+    const { res } = await invokeApp(app, { method: 'GET', url: '/status' });
+    expect(res.statusCode).toBe(200);
+    const body = res._getJSON() as { status?: string };
+    expect(body.status).toBe('ok');
   });
 });

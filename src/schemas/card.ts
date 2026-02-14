@@ -72,13 +72,44 @@ export const CardIdInputSchema = z.object({
   id: z.string().uuid().describe('The UUID of the card to lookup.'),
 });
 
-export const SearchCardsInputSchema = z.object({
-  title: z.string().optional().describe('Search for cards matching this title or title fragment.'),
-  category: z.string().optional().describe('Filter by specific category.'),
-  project: z.string().optional().describe('Filter by specific project identifier.'),
-  lvl0: z.array(z.string()).optional().describe('Filter by specific lvl0 tags.'),
-  lvl1: z.array(z.string()).optional().describe('Filter by specific lvl1 tags.'),
-});
+export const SearchCardsInputSchema = z
+  .object({
+    title: z
+      .string()
+      .trim()
+      .min(1, 'title must not be empty')
+      .optional()
+      .describe('Search for cards matching this title or title fragment.'),
+    category: z
+      .string()
+      .trim()
+      .min(1, 'category must not be empty')
+      .optional()
+      .describe('Filter by specific category.'),
+    project: z
+      .string()
+      .trim()
+      .min(1, 'project must not be empty')
+      .optional()
+      .describe('Filter by specific project identifier.'),
+    lvl0: z
+      .array(z.string().trim().min(1, 'lvl0 tag must not be empty'))
+      .optional()
+      .describe('Filter by specific lvl0 tags.'),
+    lvl1: z
+      .array(z.string().trim().min(1, 'lvl1 tag must not be empty'))
+      .optional()
+      .describe('Filter by specific lvl1 tags.'),
+  })
+  .refine(
+    (data) =>
+      Boolean(data.title) ||
+      Boolean(data.category) ||
+      Boolean(data.project) ||
+      (data.lvl0?.length ?? 0) > 0 ||
+      (data.lvl1?.length ?? 0) > 0,
+    { message: 'At least one search filter must be provided.' },
+  );
 
 export type CardInput = z.infer<typeof CardInputSchema>;
 export type WriteCardsInput = z.infer<typeof WriteCardsInputSchema>;

@@ -15,7 +15,26 @@ describe('createOpenApiSpec', () => {
     expect(spec.paths['/api/lookup-projects'].get.operationId).toBe('lookupProjects');
     expect(spec.paths['/api/lookup-tags'].get.operationId).toBe('lookupTags');
     expect(spec.paths['/api/search-cards'].post.operationId).toBe('searchCards');
+    expect(
+      spec.paths['/api/lookup-card-by-id'].post.responses['200'].content['application/json'].schema
+        .$ref,
+    ).toBe('#/components/schemas/LookupCardByIdResponse');
+    expect(
+      spec.paths['/api/lookup-categories'].get.responses['200'].content['application/json'].schema
+        .$ref,
+    ).toBe('#/components/schemas/LookupCategoriesResponse');
+    expect(
+      spec.paths['/api/lookup-projects'].get.responses['200'].content['application/json'].schema
+        .$ref,
+    ).toBe('#/components/schemas/LookupProjectsResponse');
+    expect(
+      spec.paths['/api/lookup-tags'].get.responses['200'].content['application/json'].schema.$ref,
+    ).toBe('#/components/schemas/LookupTagsResponse');
+    expect(
+      spec.paths['/api/search-cards'].post.responses['200'].content['application/json'].schema.type,
+    ).toBe('array');
     expect(spec.components.schemas.CardInput).toBeDefined();
+    expect(spec.components.schemas.Card).toBeDefined();
     expect(spec.components.schemas.CardInput.properties.title.description).toBeDefined();
     expect(spec.components.schemas.WriteCardsInput).toBeDefined();
     expect(spec.components.schemas.CardIdInput).toBeDefined();

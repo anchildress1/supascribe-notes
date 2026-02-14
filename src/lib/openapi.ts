@@ -35,9 +35,63 @@ export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): o
     components: {
       schemas: {
         CardInput: getDefinition(CardInputJsonSchema, 'CardInput'),
+        Card: {
+          allOf: [
+            { $ref: '#/components/schemas/CardInput' },
+            {
+              type: 'object',
+              properties: {
+                objectID: { type: 'string', format: 'uuid' },
+                created_at: { type: 'string', format: 'date-time' },
+                updated_at: { type: 'string', format: 'date-time' },
+              },
+              required: ['objectID', 'created_at', 'updated_at'],
+            },
+          ],
+        },
         WriteCardsInput: getDefinition(WriteCardsInputJsonSchema, 'WriteCardsInput'),
         CardIdInput: getDefinition(CardIdInputJsonSchema, 'CardIdInput'),
         SearchCardsInput: getDefinition(SearchCardsInputJsonSchema, 'SearchCardsInput'),
+        LookupCategoriesResponse: {
+          type: 'object',
+          properties: {
+            categories: { type: 'array', items: { type: 'string' } },
+          },
+          required: ['categories'],
+        },
+        LookupProjectsResponse: {
+          type: 'object',
+          properties: {
+            projects: { type: 'array', items: { type: 'string' } },
+          },
+          required: ['projects'],
+        },
+        LookupTagsResponse: {
+          type: 'object',
+          properties: {
+            tags: {
+              type: 'object',
+              properties: {
+                lvl0: { type: 'array', items: { type: 'string' } },
+                lvl1: { type: 'array', items: { type: 'string' } },
+              },
+              required: ['lvl0', 'lvl1'],
+            },
+          },
+          required: ['tags'],
+        },
+        LookupCardByIdResponse: {
+          oneOf: [
+            { $ref: '#/components/schemas/Card' },
+            {
+              type: 'object',
+              properties: {
+                message: { type: 'string' },
+              },
+              required: ['message'],
+            },
+          ],
+        },
       },
       securitySchemes: {
         BearerAuth: {
@@ -147,6 +201,13 @@ export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): o
           responses: {
             '200': {
               description: 'Card lookup result',
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/LookupCardByIdResponse',
+                  },
+                },
+              },
             },
             '400': {
               description: 'Bad Request - Validation Error',
@@ -170,6 +231,13 @@ export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): o
           responses: {
             '200': {
               description: 'Unique categories list',
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/LookupCategoriesResponse',
+                  },
+                },
+              },
             },
             '401': {
               description: 'Unauthorized - Invalid or missing token',
@@ -190,6 +258,13 @@ export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): o
           responses: {
             '200': {
               description: 'Unique projects list',
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/LookupProjectsResponse',
+                  },
+                },
+              },
             },
             '401': {
               description: 'Unauthorized - Invalid or missing token',
@@ -210,6 +285,13 @@ export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): o
           responses: {
             '200': {
               description: 'Unique tags',
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/LookupTagsResponse',
+                  },
+                },
+              },
             },
             '401': {
               description: 'Unauthorized - Invalid or missing token',
@@ -240,6 +322,16 @@ export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): o
           responses: {
             '200': {
               description: 'Search results',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'array',
+                    items: {
+                      $ref: '#/components/schemas/Card',
+                    },
+                  },
+                },
+              },
             },
             '400': {
               description: 'Bad Request - Validation Error',

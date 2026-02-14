@@ -6,11 +6,15 @@ import type { CardInput } from '../../../src/schemas/card.js';
 function createMockSupabase({
   selectResult = { data: null, error: null },
   upsertResult = { error: null },
-  insertResult = { error: null },
+  cardRevisionsInsertResult = { error: null },
+  generationRunsInsertResult = { error: null },
+  generationRunsUpdateResult = { error: null },
 }: {
   selectResult?: { data: unknown; error: null | { message: string } };
   upsertResult?: { error: null | { message: string } };
-  insertResult?: { error: null | { message: string } };
+  cardRevisionsInsertResult?: { error: null | { message: string } };
+  generationRunsInsertResult?: { error: null | { message: string } };
+  generationRunsUpdateResult?: { error: null | { message: string } };
 } = {}) {
   const selectMock = vi.fn().mockReturnValue({
     eq: vi.fn().mockReturnValue({
@@ -19,21 +23,42 @@ function createMockSupabase({
   });
 
   const upsertMock = vi.fn().mockResolvedValue(upsertResult);
-  const insertMock = vi.fn().mockResolvedValue(insertResult);
+  const cardRevisionsInsertMock = vi.fn().mockResolvedValue(cardRevisionsInsertResult);
+  const generationRunsInsertMock = vi.fn().mockResolvedValue(generationRunsInsertResult);
+  const generationRunsUpdateEqMock = vi.fn().mockResolvedValue(generationRunsUpdateResult);
+  const generationRunsUpdateMock = vi.fn().mockReturnValue({
+    eq: generationRunsUpdateEqMock,
+  });
 
   return {
     from: vi.fn().mockImplementation((table: string) => {
       if (table === 'cards') {
         return { select: selectMock, upsert: upsertMock };
       }
-      return { insert: insertMock };
+      if (table === 'card_revisions') {
+        return { insert: cardRevisionsInsertMock };
+      }
+      if (table === 'generation_runs') {
+        return { insert: generationRunsInsertMock, update: generationRunsUpdateMock };
+      }
+      return { insert: vi.fn().mockResolvedValue({ error: null }) };
     }),
-    _mocks: { selectMock, upsertMock, insertMock },
+    _mocks: {
+      selectMock,
+      upsertMock,
+      cardRevisionsInsertMock,
+      generationRunsInsertMock,
+      generationRunsUpdateMock,
+      generationRunsUpdateEqMock,
+    },
   } as unknown as SupabaseClient & {
     _mocks: {
       selectMock: ReturnType<typeof vi.fn>;
       upsertMock: ReturnType<typeof vi.fn>;
-      insertMock: ReturnType<typeof vi.fn>;
+      cardRevisionsInsertMock: ReturnType<typeof vi.fn>;
+      generationRunsInsertMock: ReturnType<typeof vi.fn>;
+      generationRunsUpdateMock: ReturnType<typeof vi.fn>;
+      generationRunsUpdateEqMock: ReturnType<typeof vi.fn>;
     };
   };
 }
@@ -109,6 +134,17 @@ describe('handleWriteCards', () => {
             }),
           };
         }
+        if (table === 'card_revisions') {
+          return { insert: vi.fn().mockResolvedValue({ error: null }) };
+        }
+        if (table === 'generation_runs') {
+          return {
+            insert: vi.fn().mockResolvedValue({ error: null }),
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            }),
+          };
+        }
         return { insert: vi.fn().mockResolvedValue({ error: null }) };
       }),
     } as unknown as SupabaseClient;
@@ -145,7 +181,9 @@ describe('handleWriteCards', () => {
     expect(result.isError).toBe(true);
 
     const body = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
-    expect(body.error).toBe('Database down');
+    expect(body.written).toBe(0);
+    expect(body.errors).toBe(1);
+    expect(body.error_details[0]).toContain('Database down');
   });
 
   it('normalizes provided created_at for historical uploads', async () => {
@@ -168,5 +206,17 @@ describe('handleWriteCards', () => {
 
     const upsertPayload = supabase._mocks.upsertMock.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(upsertPayload).not.toHaveProperty('created_at');
+  });
+
+  it('creates generation run before writing revisions', async () => {
+    const supabase = createMockSupabase();
+
+    await handleWriteCards(supabase, [validCard]);
+
+    expect(supabase._mocks.generationRunsInsertMock).toHaveBeenCalledTimes(1);
+    expect(supabase._mocks.cardRevisionsInsertMock).toHaveBeenCalledTimes(1);
+    expect(supabase._mocks.generationRunsInsertMock.mock.invocationCallOrder[0]).toBeLessThan(
+      supabase._mocks.cardRevisionsInsertMock.mock.invocationCallOrder[0],
+    );
   });
 });

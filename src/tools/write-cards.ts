@@ -18,8 +18,32 @@ export async function handleWriteCards(
   logger.info({ runId, cardCount: cards.length }, 'Starting write_cards execution');
   const results: WriteResult[] = [];
   const errors: string[] = [];
+  let generationRunCreated = false;
+  let generationRunIdForRevisions: string | null = runId;
+  let hadUnexpectedError = false;
 
   try {
+    // Create the generation run up-front so revisions can reference it (FK constraint).
+    try {
+      const { error: runError } = await supabase.from('generation_runs').insert({
+        id: runId,
+        tool_name: 'write_cards',
+        cards_written: 0,
+        status: 'partial',
+        error: null,
+      });
+
+      if (runError) {
+        generationRunIdForRevisions = null;
+        logger.error({ runId, error: runError }, 'Failed to create generation run');
+      } else {
+        generationRunCreated = true;
+      }
+    } catch (err) {
+      generationRunIdForRevisions = null;
+      logger.error({ runId, error: err }, 'Unexpected error creating generation run');
+    }
+
     for (const card of cards) {
       try {
         const objectID = card.objectID ?? randomUUID();
@@ -67,7 +91,7 @@ export async function handleWriteCards(
         const { error: revisionError } = await supabase.from('card_revisions').insert({
           card_id: objectID,
           revision_data: row,
-          generation_run_id: runId,
+          generation_run_id: generationRunIdForRevisions,
         });
 
         if (revisionError) {
@@ -81,19 +105,38 @@ export async function handleWriteCards(
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
+        hadUnexpectedError = true;
         logger.error({ runId, card: card.title, error: err }, 'Unexpected error processing card');
         errors.push(`Card "${card.title}": ${message}`);
       }
     }
 
-    // Log generation run
-    await supabase.from('generation_runs').insert({
-      id: runId,
-      tool_name: 'write_cards',
-      cards_written: results.length,
-      status: errors.length > 0 ? 'partial' : 'success',
-      error: errors.length > 0 ? errors.join('; ') : null,
-    });
+    // Finalize generation run (best-effort).
+    const finalStatus = errors.length > 0 ? 'partial' : 'success';
+    const finalError = errors.length > 0 ? errors.join('; ') : null;
+
+    try {
+      if (generationRunCreated) {
+        await supabase
+          .from('generation_runs')
+          .update({
+            cards_written: results.length,
+            status: finalStatus,
+            error: finalError,
+          })
+          .eq('id', runId);
+      } else {
+        await supabase.from('generation_runs').insert({
+          id: runId,
+          tool_name: 'write_cards',
+          cards_written: results.length,
+          status: finalStatus,
+          error: finalError,
+        });
+      }
+    } catch (err) {
+      logger.error({ runId, error: err }, 'Failed to finalize generation run');
+    }
 
     return {
       content: [
@@ -108,19 +151,31 @@ export async function handleWriteCards(
           }),
         },
       ],
+      isError: results.length === 0 && hadUnexpectedError,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
 
     // Attempt to log failed run
     try {
-      await supabase.from('generation_runs').insert({
-        id: runId,
-        tool_name: 'write_cards',
-        cards_written: results.length,
-        status: 'error',
-        error: message,
-      });
+      if (generationRunCreated) {
+        await supabase
+          .from('generation_runs')
+          .update({
+            cards_written: results.length,
+            status: 'error',
+            error: message,
+          })
+          .eq('id', runId);
+      } else {
+        await supabase.from('generation_runs').insert({
+          id: runId,
+          tool_name: 'write_cards',
+          cards_written: results.length,
+          status: 'error',
+          error: message,
+        });
+      }
     } catch {
       // Swallow logging failure
     }

@@ -29,6 +29,7 @@ vi.mock('../../src/lib/supabase.js', () => ({
   createSupabaseClient: vi.fn().mockReturnValue({
     from: vi.fn().mockImplementation((table: string) => {
       if (table === 'cards') {
+        let result = [...mockCards];
         const queryBuilder = {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockImplementation((col, val) => {
@@ -41,44 +42,78 @@ vi.mock('../../src/lib/supabase.js', () => ({
               };
             }
             if (col === 'category') {
-              return Promise.resolve({
-                data: mockCards.filter((c) => c.category === val),
-                error: null,
-              });
+              result = result.filter((c) => c.category === val);
             }
             return queryBuilder;
           }),
           ilike: vi.fn().mockImplementation((col, val) => {
             const pattern = val.replace(/%/g, '').toLowerCase();
-            return Promise.resolve({
-              data: mockCards.filter((c) => c.title.toLowerCase().includes(pattern)),
-              error: null,
-            });
+            if (col === 'title') {
+              result = result.filter((c) => c.title.toLowerCase().includes(pattern));
+            }
+            return queryBuilder;
           }),
           contains: vi.fn().mockImplementation((col, val) => {
             if (col === 'projects') {
               const project = val[0];
-              return Promise.resolve({
-                data: mockCards.filter((c) => c.projects.includes(project)),
-                error: null,
-              });
+              result = result.filter((c) => c.projects.includes(project));
             }
             if (col === 'tags') {
-              return Promise.resolve({
-                data: mockCards.filter((c) => {
-                  if (val.lvl0) return val.lvl0.some((t: string) => c.tags.lvl0.includes(t));
-                  if (val.lvl1) return val.lvl1.some((t: string) => c.tags.lvl1.includes(t));
-                  return false;
-                }),
-                error: null,
+              result = result.filter((c) => {
+                if (val.lvl0) return val.lvl0.some((t: string) => c.tags.lvl0.includes(t));
+                if (val.lvl1) return val.lvl1.some((t: string) => c.tags.lvl1.includes(t));
+                return false;
               });
             }
             return queryBuilder;
           }),
           maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          then: vi.fn((resolve) =>
+            resolve({
+              data: result,
+              error: null,
+            }),
+          ),
         };
         return queryBuilder;
       }
+
+      if (table === 'unique_categories') {
+        return {
+          select: vi.fn().mockResolvedValue({
+            data: [{ category: 'Other Category' }, { category: 'Test Category' }],
+            error: null,
+          }),
+        };
+      }
+
+      if (table === 'unique_projects') {
+        return {
+          select: vi.fn().mockResolvedValue({
+            data: [{ project: 'Project A' }, { project: 'Project B' }],
+            error: null,
+          }),
+        };
+      }
+
+      if (table === 'unique_tags_lvl0') {
+        return {
+          select: vi.fn().mockResolvedValue({
+            data: [{ tag: 'Other Tag' }, { tag: 'Tag 0' }],
+            error: null,
+          }),
+        };
+      }
+
+      if (table === 'unique_tags_lvl1') {
+        return {
+          select: vi.fn().mockResolvedValue({
+            data: [{ tag: 'Tag 1' }],
+            error: null,
+          }),
+        };
+      }
+
       return {
         select: vi.fn().mockReturnThis(),
         insert: vi.fn().mockResolvedValue({ error: null }),
@@ -92,6 +127,10 @@ vi.mock('../../src/lib/supabase.js', () => ({
     },
   }),
 }));
+
+const authHeaders = {
+  authorization: 'Bearer test-token',
+};
 
 const testConfig: Config = {
   supabaseUrl: 'http://localhost:54321',
@@ -113,5 +152,114 @@ describe('Lookup Tools Integration', () => {
     expect(res.statusCode).toBe(200);
     const body = res._getJSON() as { status?: string };
     expect(body.status).toBe('ok');
+  });
+
+  it('blocks lookup routes without auth', async () => {
+    const { res } = await invokeApp(app, { method: 'GET', url: '/api/lookup-categories' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('returns lookup_card_by_id over REST', async () => {
+    const { res } = await invokeApp(app, {
+      method: 'POST',
+      url: '/api/lookup-card-by-id',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: { id: '88888888-8888-8888-8888-888888888888' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res._getJSON() as { objectID: string; title: string };
+    expect(body.objectID).toBe('88888888-8888-8888-8888-888888888888');
+    expect(body.title).toBe('Test Card 1');
+  });
+
+  it('returns categories over REST', async () => {
+    const { res } = await invokeApp(app, {
+      method: 'GET',
+      url: '/api/lookup-categories',
+      headers: authHeaders,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res._getJSON() as { categories: string[] };
+    expect(body.categories).toEqual(['Other Category', 'Test Category']);
+  });
+
+  it('returns projects over REST', async () => {
+    const { res } = await invokeApp(app, {
+      method: 'GET',
+      url: '/api/lookup-projects',
+      headers: authHeaders,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res._getJSON() as { projects: string[] };
+    expect(body.projects).toEqual(['Project A', 'Project B']);
+  });
+
+  it('returns tags over REST', async () => {
+    const { res } = await invokeApp(app, {
+      method: 'GET',
+      url: '/api/lookup-tags',
+      headers: authHeaders,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res._getJSON() as { tags: { lvl0: string[]; lvl1: string[] } };
+    expect(body.tags.lvl0).toEqual(['Other Tag', 'Tag 0']);
+    expect(body.tags.lvl1).toEqual(['Tag 1']);
+  });
+
+  it('returns search_cards over REST', async () => {
+    const { res } = await invokeApp(app, {
+      method: 'POST',
+      url: '/api/search-cards',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: { title: 'another' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res._getJSON() as Array<{ objectID: string; title: string }>;
+    expect(body).toHaveLength(1);
+    expect(body[0].title).toBe('Another Card');
+  });
+
+  it('validates search_cards input', async () => {
+    const { res } = await invokeApp(app, {
+      method: 'POST',
+      url: '/api/search-cards',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: {},
+    });
+
+    expect(res.statusCode).toBe(400);
+    const body = res._getJSON() as { error: string };
+    expect(body.error).toBe('Validation failed');
+  });
+
+  it('publishes new operations in openapi.json', async () => {
+    const { res } = await invokeApp(app, { method: 'GET', url: '/openapi.json' });
+    expect(res.statusCode).toBe(200);
+    const body = res._getJSON() as {
+      paths: Record<string, unknown>;
+      components: { schemas: Record<string, unknown> };
+    };
+
+    expect(body.paths['/api/lookup-card-by-id']).toBeDefined();
+    expect(body.paths['/api/lookup-categories']).toBeDefined();
+    expect(body.paths['/api/lookup-projects']).toBeDefined();
+    expect(body.paths['/api/lookup-tags']).toBeDefined();
+    expect(body.paths['/api/search-cards']).toBeDefined();
+    expect(body.components.schemas.CardIdInput).toBeDefined();
+    expect(body.components.schemas.SearchCardsInput).toBeDefined();
   });
 });

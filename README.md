@@ -4,10 +4,15 @@ A TypeScript MCP server that writes index cards to Supabase, deployed on Google 
 
 ## MCP Tools
 
-| Tool          | Description                                           |
-| ------------- | ----------------------------------------------------- |
-| `health`      | Check server status and Supabase connectivity         |
-| `write_cards` | Validate and upsert index cards with revision history |
+| Tool                | Description                                                     |
+| ------------------- | --------------------------------------------------------------- |
+| `health`            | Check server status and Supabase connectivity                   |
+| `write_cards`       | Validate and upsert index cards with revision history           |
+| `lookup_card_by_id` | Find a specific index card by UUID                              |
+| `lookup_categories` | Get all unique categories used across cards                     |
+| `lookup_projects`   | Get all unique project identifiers used across cards            |
+| `lookup_tags`       | Get all unique lvl0/lvl1 tags used across cards                 |
+| `search_cards`      | Search cards by title, category, project, and hierarchical tags |
 
 ## Architecture
 
@@ -44,6 +49,17 @@ This server uses **Supabase Auth** via OAuth 2.0 for all MCP operations. MCP cli
 - `/.well-known/oauth-protected-resource`
 
 Standard `Authorization: Bearer <token>` header is required for all SSE and message endpoints.
+
+## ChatGPT SDK Endpoints
+
+The OpenAPI surface at `/openapi.json` exposes these tool-compatible REST endpoints:
+
+- `POST /api/write-cards`
+- `POST /api/lookup-card-by-id`
+- `GET /api/lookup-categories`
+- `GET /api/lookup-projects`
+- `GET /api/lookup-tags`
+- `POST /api/search-cards`
 
 ## Database Schema
 

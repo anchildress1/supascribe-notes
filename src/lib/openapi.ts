@@ -1,10 +1,17 @@
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import { CardInputSchema, WriteCardsInputSchema } from '../schemas/card.js';
+import {
+  CardInputSchema,
+  WriteCardsInputSchema,
+  CardIdInputSchema,
+  SearchCardsInputSchema,
+} from '../schemas/card.js';
 
 export function createOpenApiSpec(serverUrl: string): object {
   // Generate schemas with proper references
   const CardInputJsonSchema = zodToJsonSchema(CardInputSchema, 'CardInput');
   const WriteCardsInputJsonSchema = zodToJsonSchema(WriteCardsInputSchema, 'WriteCardsInput');
+  const CardIdInputJsonSchema = zodToJsonSchema(CardIdInputSchema, 'CardIdInput');
+  const SearchCardsInputJsonSchema = zodToJsonSchema(SearchCardsInputSchema, 'SearchCardsInput');
 
   // Helper to extract the actual schema definition from zod-to-json-schema output
   type JsonSchemaWithDefinitions = { definitions?: Record<string, unknown> };
@@ -29,6 +36,8 @@ export function createOpenApiSpec(serverUrl: string): object {
       schemas: {
         CardInput: getDefinition(CardInputJsonSchema, 'CardInput'),
         WriteCardsInput: getDefinition(WriteCardsInputJsonSchema, 'WriteCardsInput'),
+        CardIdInput: getDefinition(CardIdInputJsonSchema, 'CardIdInput'),
+        SearchCardsInput: getDefinition(SearchCardsInputJsonSchema, 'SearchCardsInput'),
       },
       securitySchemes: {
         BearerAuth: {
@@ -105,6 +114,132 @@ export function createOpenApiSpec(serverUrl: string): object {
                   },
                 },
               },
+            },
+            '400': {
+              description: 'Bad Request - Validation Error',
+            },
+            '401': {
+              description: 'Unauthorized - Invalid or missing token',
+            },
+            '500': {
+              description: 'Internal Server Error',
+            },
+          },
+        },
+      },
+      '/api/lookup-card-by-id': {
+        post: {
+          operationId: 'lookupCardById',
+          'x-openai-isConsequential': false,
+          summary: 'Lookup card by ID',
+          description: 'Find a specific card using its UUID.',
+          security: [{ BearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/CardIdInput',
+                },
+              },
+            },
+          },
+          responses: {
+            '200': {
+              description: 'Card lookup result',
+            },
+            '400': {
+              description: 'Bad Request - Validation Error',
+            },
+            '401': {
+              description: 'Unauthorized - Invalid or missing token',
+            },
+            '500': {
+              description: 'Internal Server Error',
+            },
+          },
+        },
+      },
+      '/api/lookup-categories': {
+        get: {
+          operationId: 'lookupCategories',
+          'x-openai-isConsequential': false,
+          summary: 'Lookup unique categories',
+          description: 'Get all unique card categories.',
+          security: [{ BearerAuth: [] }],
+          responses: {
+            '200': {
+              description: 'Unique categories list',
+            },
+            '401': {
+              description: 'Unauthorized - Invalid or missing token',
+            },
+            '500': {
+              description: 'Internal Server Error',
+            },
+          },
+        },
+      },
+      '/api/lookup-projects': {
+        get: {
+          operationId: 'lookupProjects',
+          'x-openai-isConsequential': false,
+          summary: 'Lookup unique projects',
+          description: 'Get all unique card project identifiers.',
+          security: [{ BearerAuth: [] }],
+          responses: {
+            '200': {
+              description: 'Unique projects list',
+            },
+            '401': {
+              description: 'Unauthorized - Invalid or missing token',
+            },
+            '500': {
+              description: 'Internal Server Error',
+            },
+          },
+        },
+      },
+      '/api/lookup-tags': {
+        get: {
+          operationId: 'lookupTags',
+          'x-openai-isConsequential': false,
+          summary: 'Lookup unique tags',
+          description: 'Get all unique lvl0 and lvl1 tags.',
+          security: [{ BearerAuth: [] }],
+          responses: {
+            '200': {
+              description: 'Unique tags',
+            },
+            '401': {
+              description: 'Unauthorized - Invalid or missing token',
+            },
+            '500': {
+              description: 'Internal Server Error',
+            },
+          },
+        },
+      },
+      '/api/search-cards': {
+        post: {
+          operationId: 'searchCards',
+          'x-openai-isConsequential': false,
+          summary: 'Search cards',
+          description: 'Search cards by title, category, project, and tags.',
+          security: [{ BearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/SearchCardsInput',
+                },
+              },
+            },
+          },
+          responses: {
+            '200': {
+              description: 'Search results',
             },
             '400': {
               description: 'Bad Request - Validation Error',

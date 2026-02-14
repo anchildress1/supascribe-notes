@@ -28,6 +28,26 @@ import { renderAuthPage } from './views/auth-view.js';
 import { renderHelpPage } from './views/help-view.js';
 import { createOpenApiSpec } from './lib/openapi.js';
 import cors from 'cors';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+
+function sendToolResult(res: express.Response, result: CallToolResult): void {
+  if (result.isError) {
+    const errorText = result.content[0].type === 'text' ? result.content[0].text : 'Unknown error';
+    try {
+      res.status(500).json(JSON.parse(errorText));
+    } catch {
+      res.status(500).json({ error: errorText });
+    }
+    return;
+  }
+
+  const successText = result.content[0].type === 'text' ? result.content[0].text : '{}';
+  try {
+    res.json(JSON.parse(successText));
+  } catch {
+    res.json({ result: successText });
+  }
+}
 
 export function createApp(config: Config): express.Express {
   const supabase = createSupabaseClient(config.supabaseUrl, config.supabaseServiceRoleKey);
@@ -178,25 +198,76 @@ export function createApp(config: Config): express.Express {
 
       // Reuse the MCP tool logic
       const result = await handleWriteCards(supabase, bodyResult.data.cards);
+      sendToolResult(res, result);
+    } catch (err) {
+      logger.error({ error: err }, 'REST write-cards failed');
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
 
-      // Unwrap MCP result
-      if (result.isError) {
-        const errorText =
-          result.content[0].type === 'text' ? result.content[0].text : 'Unknown error';
-        // Try to parse if it's JSON
-        try {
-          const parsed = JSON.parse(errorText);
-          res.status(500).json(parsed);
-        } catch {
-          res.status(500).json({ error: errorText });
-        }
+  app.post('/api/lookup-card-by-id', authenticate, async (req, res) => {
+    try {
+      logger.info('Received lookup-card-by-id request from ChatGPT/App');
+      const bodyResult = CardIdInputSchema.safeParse(req.body);
+      if (!bodyResult.success) {
+        res.status(400).json({ error: 'Validation failed', details: bodyResult.error });
         return;
       }
 
-      const successText = result.content[0].type === 'text' ? result.content[0].text : '{}';
-      res.json(JSON.parse(successText));
+      const result = await handleLookupCardById(supabase, bodyResult.data.id);
+      sendToolResult(res, result);
     } catch (err) {
-      logger.error({ error: err }, 'REST write-cards failed');
+      logger.error({ error: err }, 'REST lookup-card-by-id failed');
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/lookup-categories', authenticate, async (_req, res) => {
+    try {
+      logger.info('Received lookup-categories request from ChatGPT/App');
+      const result = await handleLookupCategories(supabase);
+      sendToolResult(res, result);
+    } catch (err) {
+      logger.error({ error: err }, 'REST lookup-categories failed');
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/lookup-projects', authenticate, async (_req, res) => {
+    try {
+      logger.info('Received lookup-projects request from ChatGPT/App');
+      const result = await handleLookupProjects(supabase);
+      sendToolResult(res, result);
+    } catch (err) {
+      logger.error({ error: err }, 'REST lookup-projects failed');
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/lookup-tags', authenticate, async (_req, res) => {
+    try {
+      logger.info('Received lookup-tags request from ChatGPT/App');
+      const result = await handleLookupTags(supabase);
+      sendToolResult(res, result);
+    } catch (err) {
+      logger.error({ error: err }, 'REST lookup-tags failed');
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/search-cards', authenticate, async (req, res) => {
+    try {
+      logger.info('Received search-cards request from ChatGPT/App');
+      const bodyResult = SearchCardsInputSchema.safeParse(req.body);
+      if (!bodyResult.success) {
+        res.status(400).json({ error: 'Validation failed', details: bodyResult.error });
+        return;
+      }
+
+      const result = await handleSearchCards(supabase, bodyResult.data);
+      sendToolResult(res, result);
+    } catch (err) {
+      logger.error({ error: err }, 'REST search-cards failed');
       res.status(500).json({ error: 'Internal server error' });
     }
   });

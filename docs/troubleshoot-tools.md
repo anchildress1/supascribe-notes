@@ -76,6 +76,9 @@ same origin, the authorization page should auto-detect the new session and conti
 
 If auto-detection does not trigger, use the **"I signed in in another tab"** button to force a re-check.
 
+The consent page also supports direct **email/password sign-in** via `signInWithPassword`, which is useful
+when OAuth providers (Google/GitHub) are not configured on your Supabase project.
+
 ### Full Verification Checklist (MCP + OpenAPI)
 
 1. **Confirm deployed version changed**

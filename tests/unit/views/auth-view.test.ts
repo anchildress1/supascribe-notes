@@ -21,5 +21,9 @@ describe('Auth View', () => {
     expect(html).toContain('anon-key');
     expect(html).toContain('This page auto-detects new sessions.');
     expect(html).toContain('I signed in in another tab');
+    expect(html).toContain('id="email-input"');
+    expect(html).toContain('id="password-input"');
+    expect(html).toContain('signInWithPassword()');
+    expect(html).toContain('signInWithPassword({ email, password })');
   });
 });

@@ -34,12 +34,14 @@ make install
 
 ### Environment Variables
 
-| Variable                    | Required | Description                   |
-| --------------------------- | -------- | ----------------------------- |
-| `SUPABASE_URL`              | ✅       | Supabase project URL          |
-| `SUPABASE_SERVICE_ROLE_KEY` | ✅       | Supabase service role key     |
-| `PORT`                      | ❌       | Server port (default: `8080`) |
-| `PUBLIC_URL`                | ✅       | Public URL for OAuth & SSE    |
+| Variable                    | Required | Description                                                          |
+| --------------------------- | -------- | -------------------------------------------------------------------- |
+| `SUPABASE_URL`              | ✅       | Supabase project URL                                                 |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅       | Supabase service role key                                            |
+| `SUPABASE_ANON_KEY`         | ✅       | Supabase anon key (auth UI)                                          |
+| `PORT`                      | ❌       | Server port (default: `8080`)                                        |
+| `PUBLIC_URL`                | ✅       | Public URL for OAuth & SSE                                           |
+| `SERVER_VERSION`            | ❌       | MCP/OpenAPI version hint for client cache busting (default: `1.0.0`) |
 
 ## Authentication
 
@@ -60,6 +62,8 @@ The OpenAPI surface at `/openapi.json` exposes these tool-compatible REST endpoi
 - `GET /api/lookup-projects`
 - `GET /api/lookup-tags`
 - `POST /api/search-cards`
+
+When adding/changing tools, bump `SERVER_VERSION` before deploy so ChatGPT refreshes cached tool metadata.
 
 ## Database Schema
 

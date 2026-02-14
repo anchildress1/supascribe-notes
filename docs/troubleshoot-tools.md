@@ -68,3 +68,26 @@ If using the REST/Actions path instead of MCP, ensure:
 ChatGPT Dev Mode has reported intermittent failures where valid tools are not picked up.
 If tools are correctly annotated and still hidden, disconnect and reconnect the app in
 ChatGPT settings. This is a known platform issue, not a server bug.
+
+### Full Verification Checklist (MCP + OpenAPI)
+
+1. **Confirm deployed version changed**
+   - Set `SERVER_VERSION` to a new value for each tool-surface change.
+   - Verify `GET /status` returns that `version`.
+2. **Confirm OpenAPI is fresh**
+   - `GET /openapi.json` should include all expected `/api/*` paths.
+   - Response should include `Cache-Control: no-store`.
+3. **Confirm MCP list is complete**
+   - Connect to `/sse`, initialize, then call `tools/list`.
+   - Validate expected tools are present:
+     - `health`
+     - `write_cards`
+     - `lookup_card_by_id`
+     - `lookup_categories`
+     - `lookup_projects`
+     - `lookup_tags`
+     - `search_cards`
+4. **Confirm per-tool metadata**
+   - Each tool has `title`, `annotations`, and `_meta.ui.visibility = ["model","app"]`.
+5. **Refresh ChatGPT app connection**
+   - Remove and reconnect if cache still shows stale tools.

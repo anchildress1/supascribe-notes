@@ -57,7 +57,11 @@ export function createApp(config: Config): express.Express {
 
   // Health check
   app.get('/status', (_req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      version: config.serverVersion,
+    });
   });
 
   // Enable CORS
@@ -77,7 +81,9 @@ export function createApp(config: Config): express.Express {
 
   // OpenAPI Spec
   app.get('/openapi.json', (req, res) => {
-    const spec = createOpenApiSpec(config.publicUrl);
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.set('Pragma', 'no-cache');
+    const spec = createOpenApiSpec(config.publicUrl, config.serverVersion);
     res.json(spec);
   });
 
@@ -101,6 +107,8 @@ export function createApp(config: Config): express.Express {
 
   // OAuth Discovery Endpoint
   app.get('/.well-known/oauth-authorization-server', (req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.set('Pragma', 'no-cache');
     res.json({
       issuer: `${config.supabaseUrl}/auth/v1`,
       authorization_endpoint: `${config.supabaseUrl}/auth/v1/oauth/authorize`,
@@ -116,6 +124,8 @@ export function createApp(config: Config): express.Express {
 
   // OAuth Protected Resource Metadata
   app.get('/.well-known/oauth-protected-resource', (_req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.set('Pragma', 'no-cache');
     res.json({
       resource: config.supabaseUrl,
       authorization_servers: [`${config.supabaseUrl}/auth/v1`],
@@ -126,6 +136,8 @@ export function createApp(config: Config): express.Express {
 
   // SSE specific OAuth Protected Resource Metadata
   app.get('/.well-known/oauth-protected-resource/sse', (_req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.set('Pragma', 'no-cache');
     res.json({
       resource: config.supabaseUrl,
       authorization_servers: [`${config.supabaseUrl}/auth/v1`],
@@ -153,7 +165,7 @@ export function createApp(config: Config): express.Express {
     // Create a new transport for this connection
     // The endpoint URL will be where clients send messages
     const transport = new SSEServerTransport('/messages', res);
-    const server = createMcpServer(supabase);
+    const server = createMcpServer(supabase, config.serverVersion);
 
     try {
       // Connect first to ensure everything is set up
@@ -301,10 +313,10 @@ export function createApp(config: Config): express.Express {
   return app;
 }
 
-export function createMcpServer(supabase: SupabaseClient): McpServer {
+export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0'): McpServer {
   const server = new McpServer({
     name: 'supascribe-notes-mcp',
-    version: '1.0.0',
+    version: serverVersion,
   });
 
   server.registerTool(

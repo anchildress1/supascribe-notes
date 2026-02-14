@@ -6,7 +6,7 @@ import {
   SearchCardsInputSchema,
 } from '../schemas/card.js';
 
-export function createOpenApiSpec(serverUrl: string): object {
+export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): object {
   // Generate schemas with proper references
   const CardInputJsonSchema = zodToJsonSchema(CardInputSchema, 'CardInput');
   const WriteCardsInputJsonSchema = zodToJsonSchema(WriteCardsInputSchema, 'WriteCardsInput');
@@ -25,7 +25,7 @@ export function createOpenApiSpec(serverUrl: string): object {
       title: 'Supascribe Notes Action',
       description:
         'API for writing formatted index cards to Supabase, integrating directly with ChatGPT.',
-      version: '1.0.0',
+      version: serverVersion,
     },
     servers: [
       {

@@ -15,11 +15,13 @@ describe('loadConfig', () => {
 
   it('loads all config from env vars', () => {
     vi.stubEnv('PUBLIC_URL', 'http://example.com');
+    vi.stubEnv('SERVER_VERSION', '1.2.3');
     const config = loadConfig();
     expect(config.supabaseUrl).toBe('http://localhost:54321');
     expect(config.supabaseServiceRoleKey).toBe('test-key');
     expect(config.port).toBe(3000);
     expect(config.publicUrl).toBe('http://example.com');
+    expect(config.serverVersion).toBe('1.2.3');
   });
 
   it('uses default port 8080 when PORT is not set', () => {
@@ -34,6 +36,12 @@ describe('loadConfig', () => {
     delete process.env['PUBLIC_URL'];
     const config = loadConfig();
     expect(config.publicUrl).toBe('http://localhost:3000');
+  });
+
+  it('uses default serverVersion when SERVER_VERSION is not set', () => {
+    delete process.env['SERVER_VERSION'];
+    const config = loadConfig();
+    expect(config.serverVersion).toBe('1.0.0');
   });
 
   it('throws when SUPABASE_URL is missing', () => {

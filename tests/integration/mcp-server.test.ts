@@ -51,6 +51,7 @@ const testConfig: Config = {
   supabaseAnonKey: 'anon-key',
   port: 0,
   publicUrl: 'http://localhost:0',
+  serverVersion: '1.0.0',
 };
 
 describe('MCP Server Integration', () => {
@@ -65,6 +66,7 @@ describe('MCP Server Integration', () => {
     expect(res.statusCode).toBe(200);
     const body = res._getJSON() as Record<string, unknown>;
     expect(body.status).toBe('ok');
+    expect(body.version).toBe('1.0.0');
   });
 
   it('GET / returns 200 and HTML help page', async () => {
@@ -132,6 +134,7 @@ describe('MCP Server Integration', () => {
       url: '/.well-known/oauth-authorization-server',
     });
     expect(res.statusCode).toBe(200);
+    expect(res._getHeaders()['cache-control']).toContain('no-store');
     const body = res._getJSON() as {
       authorization_endpoint: string;
       token_endpoint: string;
@@ -146,6 +149,7 @@ describe('MCP Server Integration', () => {
       url: '/.well-known/oauth-protected-resource/sse',
     });
     expect(res.statusCode).toBe(200);
+    expect(res._getHeaders()['cache-control']).toContain('no-store');
     const body = res._getJSON() as { resource: string };
     expect(body.resource).toBe(testConfig.supabaseUrl);
   });
@@ -282,6 +286,16 @@ describe('MCP Server Integration', () => {
       },
     });
 
+    const expectedToolNames = [
+      'health',
+      'write_cards',
+      'lookup_card_by_id',
+      'lookup_categories',
+      'lookup_projects',
+      'lookup_tags',
+      'search_cards',
+    ];
+
     // Read events
     let foundTools = false;
     for (let i = 0; i < 2; i++) {
@@ -291,6 +305,10 @@ describe('MCP Server Integration', () => {
         if (json.id === 2 && json.result) {
           const tools = json.result.tools;
           expect(tools).toBeDefined();
+          expect(tools).toHaveLength(expectedToolNames.length);
+
+          const toolNames = tools.map((t: { name: string }) => t.name).sort();
+          expect(toolNames).toEqual([...expectedToolNames].sort());
 
           const writeTool = tools.find((t: { name: string }) => t.name === 'write_cards');
           expect(writeTool).toBeDefined();
@@ -305,6 +323,17 @@ describe('MCP Server Integration', () => {
           expect(writeTool.inputSchema.properties).toBeDefined();
           expect(writeTool.inputSchema.properties.cards).toBeDefined();
           expect(writeTool.inputSchema.properties.cards.type).toBe('array');
+
+          for (const name of expectedToolNames) {
+            const tool = tools.find((t: { name: string }) => t.name === name);
+            expect(tool).toBeDefined();
+            expect(tool.title).toBeTruthy();
+            expect(tool.annotations).toBeDefined();
+            expect(tool.annotations.readOnlyHint).not.toBeUndefined();
+            expect(tool.annotations.destructiveHint).not.toBeUndefined();
+            expect(tool.annotations.openWorldHint).not.toBeUndefined();
+            expect(tool._meta?.ui?.visibility).toEqual(['model', 'app']);
+          }
 
           foundTools = true;
           break;

@@ -138,6 +138,7 @@ const testConfig: Config = {
   supabaseAnonKey: 'anon-key',
   port: 0,
   publicUrl: 'http://localhost:0',
+  serverVersion: '1.0.0',
 };
 
 describe('Lookup Tools Integration', () => {
@@ -249,9 +250,11 @@ describe('Lookup Tools Integration', () => {
   it('publishes new operations in openapi.json', async () => {
     const { res } = await invokeApp(app, { method: 'GET', url: '/openapi.json' });
     expect(res.statusCode).toBe(200);
+    expect(res._getHeaders()['cache-control']).toContain('no-store');
     const body = res._getJSON() as {
       paths: Record<string, unknown>;
       components: { schemas: Record<string, unknown> };
+      info: { version: string };
     };
 
     expect(body.paths['/api/lookup-card-by-id']).toBeDefined();
@@ -261,5 +264,6 @@ describe('Lookup Tools Integration', () => {
     expect(body.paths['/api/search-cards']).toBeDefined();
     expect(body.components.schemas.CardIdInput).toBeDefined();
     expect(body.components.schemas.SearchCardsInput).toBeDefined();
+    expect(body.info.version).toBe('1.0.0');
   });
 });

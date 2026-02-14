@@ -10,6 +10,7 @@ describe('Auth View', () => {
       supabaseServiceRoleKey: 'test-key',
       supabaseAnonKey: 'anon-key',
       publicUrl: 'http://localhost:3000',
+      serverVersion: '1.0.0',
     };
 
     const html = renderAuthPage(config);

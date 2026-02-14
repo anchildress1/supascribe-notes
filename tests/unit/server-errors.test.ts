@@ -9,6 +9,7 @@ const testConfig: Config = {
   supabaseAnonKey: 'anon-key',
   port: 0, // Random port
   publicUrl: 'http://localhost:0',
+  serverVersion: '1.0.0',
 };
 
 // Mock dependencies

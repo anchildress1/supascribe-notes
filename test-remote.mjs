@@ -14,7 +14,7 @@ if (fs.existsSync('.env')) {
 }
 
 // Configuration
-const SERVICE_NAME = 'supascribe-notes-mcp';
+const SERVICE_NAME = 'supascribe-notes';
 const MCP_SERVER_URL =
   process.env.MCP_SERVER_URL || `https://${SERVICE_NAME}-placeholder.a.run.app`;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;

@@ -124,7 +124,7 @@ After deployment, verify the service is running:
 ```bash
 # Replace with your deployed Cloud Run service URL
 # You can find this in the Cloud Run console or with:
-# gcloud run services describe supascribe-notes-mcp --region YOUR_REGION --format='value(status.url)'
+# gcloud run services describe supascribe-notes --region YOUR_REGION --format='value(status.url)'
 SERVICE_URL="https://your-service-url"
 
 # 1. Health check (Public)

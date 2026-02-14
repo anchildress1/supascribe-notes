@@ -93,6 +93,17 @@ describe('CardInputSchema', () => {
   it('rejects invalid objectID format', () => {
     expect(() => CardInputSchema.parse({ ...validCard, objectID: 'not-a-uuid' })).toThrow();
   });
+
+  it('accepts empty created_at by defaulting it', () => {
+    const result = CardInputSchema.parse({ ...validCard, created_at: '   ' });
+    expect(result.created_at).toBeUndefined();
+  });
+
+  it('accepts created_at when provided', () => {
+    const created_at = '2020-01-01T00:00:00Z';
+    const result = CardInputSchema.parse({ ...validCard, created_at: `  ${created_at}  ` });
+    expect(result.created_at).toBe(created_at);
+  });
 });
 
 describe('WriteCardsInputSchema', () => {

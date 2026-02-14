@@ -24,7 +24,9 @@ export async function handleWriteCards(
       try {
         const objectID = card.objectID ?? randomUUID();
         const now = new Date().toISOString();
-        const createdAt = card.created_at ? new Date(card.created_at).toISOString() : undefined;
+        const createdAtInput =
+          typeof card.created_at === 'string' ? card.created_at.trim() : undefined;
+        const createdAt = createdAtInput ? new Date(createdAtInput).toISOString() : undefined;
 
         const row = {
           objectID,

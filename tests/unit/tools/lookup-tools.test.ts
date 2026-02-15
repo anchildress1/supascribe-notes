@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
-  handleLookupCardById,
+  handleLookupCardsById,
   handleLookupCategories,
   handleLookupProjects,
   handleLookupTags,
@@ -9,14 +9,26 @@ import {
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 describe('Lookup Tools Unit Tests', () => {
-  let mockSupabase: unknown;
+  type QueryMock = {
+    from: ReturnType<typeof vi.fn>;
+    select: ReturnType<typeof vi.fn>;
+    eq: ReturnType<typeof vi.fn>;
+    in: ReturnType<typeof vi.fn>;
+    ilike: ReturnType<typeof vi.fn>;
+    contains: ReturnType<typeof vi.fn>;
+    maybeSingle: ReturnType<typeof vi.fn>;
+    then: ReturnType<typeof vi.fn>;
+  };
+
+  let mockSupabase: QueryMock;
 
   beforeEach(() => {
-    const createQueryMock = (returnValue: unknown) => {
-      const mock = {
+    const createQueryMock = (returnValue: unknown): QueryMock => {
+      const mock: QueryMock = {
         from: vi.fn().mockReturnThis(),
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
         ilike: vi.fn().mockReturnThis(),
         contains: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue(returnValue),
@@ -30,27 +42,26 @@ describe('Lookup Tools Unit Tests', () => {
     mockSupabase = createQueryMock({ data: [], error: null });
   });
 
-  it('handleLookupCardById calls supabase correctly', async () => {
+  it('handleLookupCardsById calls supabase correctly', async () => {
     const id = '88888888-8888-8888-8888-888888888888';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase = mockSupabase as any;
-    supabase.maybeSingle.mockResolvedValue({ data: { objectID: id }, error: null });
+    const supabase = mockSupabase;
+    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
+      Promise.resolve({ data: [{ objectID: id }], error: null }).then(onfulfilled),
+    );
 
-    const result = await handleLookupCardById(supabase as SupabaseClient, id);
+    const result = await handleLookupCardsById(supabase as SupabaseClient, [id]);
 
     expect(supabase.from).toHaveBeenCalledWith('cards');
-    expect(supabase.eq).toHaveBeenCalledWith('objectID', id);
+    expect(supabase.in).toHaveBeenCalledWith('objectID', [id]);
     expect(JSON.parse(result.content[0].type === 'text' ? result.content[0].text : '{}')).toEqual({
-      objectID: id,
+      cards: [{ objectID: id }],
     });
   });
 
   it('handleLookupCategories calls supabase correctly', async () => {
     const mockData = { data: [{ category: 'Cat 1' }, { category: 'Cat 2' }], error: null };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase = mockSupabase as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    supabase.then.mockImplementation((onfulfilled: any) =>
+    const supabase = mockSupabase;
+    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
       Promise.resolve(mockData).then(onfulfilled),
     );
 
@@ -64,10 +75,8 @@ describe('Lookup Tools Unit Tests', () => {
 
   it('handleLookupProjects calls supabase correctly', async () => {
     const mockData = { data: [{ project: 'P1' }, { project: 'P2' }], error: null };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase = mockSupabase as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    supabase.then.mockImplementation((onfulfilled: any) =>
+    const supabase = mockSupabase;
+    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
       Promise.resolve(mockData).then(onfulfilled),
     );
 
@@ -80,16 +89,14 @@ describe('Lookup Tools Unit Tests', () => {
   });
 
   it('handleLookupTags calls supabase correctly', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase = mockSupabase as any;
+    const supabase = mockSupabase;
     supabase.from.mockImplementation((table: string) => {
       const data = table === 'unique_tags_lvl0' ? [{ tag: 'T0' }] : [{ tag: 'T1' }, { tag: 'T2' }];
       return {
         select: vi.fn().mockReturnThis(),
         then: vi
           .fn()
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .mockImplementation((onfulfilled: any) =>
+          .mockImplementation((onfulfilled: (value: unknown) => unknown) =>
             Promise.resolve({ data, error: null }).then(onfulfilled),
           ),
       };
@@ -113,10 +120,8 @@ describe('Lookup Tools Unit Tests', () => {
       lvl1: ['T1'],
     };
     const mockData = { data: [{ title: 'Test Card' }], error: null };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase = mockSupabase as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    supabase.then.mockImplementation((onfulfilled: any) =>
+    const supabase = mockSupabase;
+    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
       Promise.resolve(mockData).then(onfulfilled),
     );
 
@@ -134,8 +139,7 @@ describe('Lookup Tools Unit Tests', () => {
   });
 
   it('handleSearchCards returns error for empty filters', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase = mockSupabase as any;
+    const supabase = mockSupabase;
 
     const result = await handleSearchCards(supabase as SupabaseClient, {});
 

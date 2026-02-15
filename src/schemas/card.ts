@@ -93,9 +93,15 @@ export const WriteCardsInputSchema = z.object({
 
 export const EmptyInputSchema = z.object({});
 
-export const CardIdInputSchema = z.object({
-  id: z.string().uuid().describe('The UUID of the card to lookup.'),
-});
+export const CardIdInputSchema = z
+  .object({
+    ids: z
+      .array(z.string().uuid())
+      .min(1, 'At least one card id is required')
+      .max(50, 'Maximum 50 card ids per request')
+      .describe('Array of card UUIDs to lookup.'),
+  })
+  .strict();
 
 export const SearchCardsInputSchema = z
   .object({

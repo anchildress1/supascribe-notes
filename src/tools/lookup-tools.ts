@@ -2,15 +2,15 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { logger } from '../lib/logger.js';
 
-export async function handleLookupCardById(
+export async function handleLookupCardsById(
   supabase: SupabaseClient,
-  id: string,
+  ids: string[],
 ): Promise<CallToolResult> {
-  logger.info({ id }, 'Looking up card by ID');
-  const { data, error } = await supabase.from('cards').select('*').eq('objectID', id).maybeSingle();
+  logger.info({ ids }, 'Looking up cards by ID list');
+  const { data, error } = await supabase.from('cards').select('*').in('objectID', ids);
 
   if (error) {
-    logger.error({ id, error }, 'Error looking up card by ID');
+    logger.error({ ids, error }, 'Error looking up cards by ID list');
     return {
       content: [{ type: 'text', text: `Error: ${error.message}` }],
       isError: true,
@@ -18,7 +18,7 @@ export async function handleLookupCardById(
   }
 
   return {
-    content: [{ type: 'text', text: JSON.stringify(data ?? { message: 'Card not found' }) }],
+    content: [{ type: 'text', text: JSON.stringify({ cards: data ?? [] }) }],
   };
 }
 

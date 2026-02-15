@@ -8,7 +8,7 @@ A TypeScript MCP server that writes index cards to Supabase, deployed on Google 
 | ------------------- | --------------------------------------------------------------- |
 | `health`            | Check server status and Supabase connectivity                   |
 | `write_cards`       | Validate and upsert index cards with revision history           |
-| `lookup_card_by_id` | Find a specific index card by UUID                              |
+| `lookup_card_by_id` | Find specific index cards by UUID list                          |
 | `lookup_categories` | Get all unique categories used across cards                     |
 | `lookup_projects`   | Get all unique project identifiers used across cards            |
 | `lookup_tags`       | Get all unique lvl0/lvl1 tags used across cards                 |
@@ -63,6 +63,14 @@ The OpenAPI surface at `/openapi.json` exposes these tool-compatible REST endpoi
 - `GET /api/lookup-projects`
 - `GET /api/lookup-tags`
 - `POST /api/search-cards`
+
+`lookup-card-by-id` expects an array payload:
+
+```json
+{
+  "ids": ["<uuid>", "<uuid>"]
+}
+```
 
 When adding/changing tools, bump `SERVER_VERSION` before deploy so ChatGPT refreshes cached tool metadata.
 

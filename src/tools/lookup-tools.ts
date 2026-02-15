@@ -4,13 +4,34 @@ import { logger } from '../lib/logger.js';
 
 export async function handleLookupCardById(
   supabase: SupabaseClient,
-  id: string,
+  idOrIds: string | string[],
 ): Promise<CallToolResult> {
-  logger.info({ id }, 'Looking up card by ID');
-  const { data, error } = await supabase.from('cards').select('*').eq('objectID', id).maybeSingle();
+  if (Array.isArray(idOrIds)) {
+    logger.info({ ids: idOrIds }, 'Looking up cards by ID list');
+    const { data, error } = await supabase.from('cards').select('*').in('objectID', idOrIds);
+
+    if (error) {
+      logger.error({ ids: idOrIds, error }, 'Error looking up cards by ID list');
+      return {
+        content: [{ type: 'text', text: `Error: ${error.message}` }],
+        isError: true,
+      };
+    }
+
+    return {
+      content: [{ type: 'text', text: JSON.stringify({ cards: data ?? [] }) }],
+    };
+  }
+
+  logger.info({ id: idOrIds }, 'Looking up card by ID');
+  const { data, error } = await supabase
+    .from('cards')
+    .select('*')
+    .eq('objectID', idOrIds)
+    .maybeSingle();
 
   if (error) {
-    logger.error({ id, error }, 'Error looking up card by ID');
+    logger.error({ id: idOrIds, error }, 'Error looking up card by ID');
     return {
       content: [{ type: 'text', text: `Error: ${error.message}` }],
       isError: true,

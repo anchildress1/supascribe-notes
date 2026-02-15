@@ -46,6 +46,12 @@ vi.mock('../../src/lib/supabase.js', () => ({
             }
             return queryBuilder;
           }),
+          in: vi.fn().mockImplementation((col, val) => {
+            if (col === 'objectID') {
+              result = result.filter((c) => val.includes(c.objectID));
+            }
+            return queryBuilder;
+          }),
           ilike: vi.fn().mockImplementation((col, val) => {
             const pattern = val.replace(/%/g, '').toLowerCase();
             if (col === 'title') {
@@ -175,6 +181,29 @@ describe('Lookup Tools Integration', () => {
     const body = res._getJSON() as { objectID: string; title: string };
     expect(body.objectID).toBe('88888888-8888-8888-8888-888888888888');
     expect(body.title).toBe('Test Card 1');
+  });
+
+  it('returns lookup_card_by_id results for id arrays over REST', async () => {
+    const { res } = await invokeApp(app, {
+      method: 'POST',
+      url: '/api/lookup-card-by-id',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: {
+        ids: ['88888888-8888-8888-8888-888888888888', '99999999-9999-9999-9999-999999999999'],
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res._getJSON() as { cards: Array<{ objectID: string }> };
+    expect(body.cards).toHaveLength(2);
+    const ids = body.cards.map((card) => card.objectID).sort();
+    expect(ids).toEqual([
+      '88888888-8888-8888-8888-888888888888',
+      '99999999-9999-9999-9999-999999999999',
+    ]);
   });
 
   it('returns categories over REST', async () => {

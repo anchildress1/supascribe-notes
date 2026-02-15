@@ -86,6 +86,13 @@ export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): o
             {
               type: 'object',
               properties: {
+                cards: { type: 'array', items: { $ref: '#/components/schemas/Card' } },
+              },
+              required: ['cards'],
+            },
+            {
+              type: 'object',
+              properties: {
                 message: { type: 'string' },
               },
               required: ['message'],
@@ -185,8 +192,8 @@ export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): o
         post: {
           operationId: 'lookupCardById',
           'x-openai-isConsequential': false,
-          summary: 'Lookup card by ID',
-          description: 'Find a specific card using its UUID.',
+          summary: 'Lookup card(s) by ID',
+          description: 'Find specific card(s) using a UUID or list of UUIDs.',
           security: [{ BearerAuth: [] }],
           requestBody: {
             required: true,

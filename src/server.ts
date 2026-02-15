@@ -226,7 +226,13 @@ export function createApp(config: Config): express.Express {
         return;
       }
 
-      const result = await handleLookupCardById(supabase, bodyResult.data.id);
+      const { id, ids } = bodyResult.data;
+      const lookupTarget = ids ?? id;
+      if (!lookupTarget) {
+        res.status(400).json({ error: 'Validation failed', details: 'id or ids is required' });
+        return;
+      }
+      const result = await handleLookupCardById(supabase, lookupTarget);
       sendToolResult(res, result);
     } catch (err) {
       logger.error({ error: err }, 'REST lookup-card-by-id failed');
@@ -360,7 +366,7 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     'lookup_card_by_id',
     {
       title: 'Lookup Card by ID',
-      description: 'Find a specific index card by its UUID',
+      description: 'Find specific index cards by UUID (single or list).',
       inputSchema: CardIdInputSchema,
       annotations: {
         readOnlyHint: true,
@@ -372,7 +378,16 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
         ui: { visibility: ['model', 'app'] },
       },
     },
-    async ({ id }: CardIdInput) => handleLookupCardById(supabase, id),
+    async ({ id, ids }: CardIdInput) => {
+      const lookupTarget = ids ?? id;
+      if (!lookupTarget) {
+        return {
+          content: [{ type: 'text', text: 'Error: id or ids is required' }],
+          isError: true,
+        };
+      }
+      return handleLookupCardById(supabase, lookupTarget);
+    },
   );
 
   server.registerTool(

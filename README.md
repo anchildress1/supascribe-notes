@@ -8,7 +8,7 @@ A TypeScript MCP server that writes index cards to Supabase, deployed on Google 
 | ------------------- | --------------------------------------------------------------- |
 | `health`            | Check server status and Supabase connectivity                   |
 | `write_cards`       | Validate and upsert index cards with revision history           |
-| `lookup_card_by_id` | Find a specific index card by UUID                              |
+| `lookup_card_by_id` | Find specific index card(s) by UUID or UUID list                |
 | `lookup_categories` | Get all unique categories used across cards                     |
 | `lookup_projects`   | Get all unique project identifiers used across cards            |
 | `lookup_tags`       | Get all unique lvl0/lvl1 tags used across cards                 |

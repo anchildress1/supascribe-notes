@@ -39,5 +39,18 @@ describe('createOpenApiSpec', () => {
     expect(spec.components.schemas.WriteCardsInput).toBeDefined();
     expect(spec.components.schemas.CardIdInput).toBeDefined();
     expect(spec.components.schemas.SearchCardsInput).toBeDefined();
+
+    const cardInputRequired = spec.components.schemas.CardInput.required ?? [];
+    expect(cardInputRequired).toEqual(
+      expect.arrayContaining(['title', 'blurb', 'fact', 'tags', 'category', 'signal']),
+    );
+    expect(cardInputRequired).not.toEqual(expect.arrayContaining(['objectID', 'url']));
+
+    const writeCardsItemRequired =
+      spec.components.schemas.WriteCardsInput.properties.cards.items.required ?? [];
+    expect(writeCardsItemRequired).toEqual(
+      expect.arrayContaining(['title', 'blurb', 'fact', 'tags', 'category', 'signal']),
+    );
+    expect(writeCardsItemRequired).not.toEqual(expect.arrayContaining(['objectID', 'url']));
   });
 });

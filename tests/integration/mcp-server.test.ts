@@ -323,6 +323,14 @@ describe('MCP Server Integration', () => {
           expect(writeTool.inputSchema.properties).toBeDefined();
           expect(writeTool.inputSchema.properties.cards).toBeDefined();
           expect(writeTool.inputSchema.properties.cards.type).toBe('array');
+          expect(writeTool.inputSchema.properties.cards.items).toBeDefined();
+
+          const cardItemSchema = writeTool.inputSchema.properties.cards.items;
+          const requiredFields = cardItemSchema.required ?? [];
+          expect(requiredFields).toEqual(
+            expect.arrayContaining(['title', 'blurb', 'fact', 'tags', 'category', 'signal']),
+          );
+          expect(requiredFields).not.toEqual(expect.arrayContaining(['objectID', 'url']));
 
           for (const name of expectedToolNames) {
             const tool = tools.find((t: { name: string }) => t.name === name);

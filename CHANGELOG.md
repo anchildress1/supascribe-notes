@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/anchildress1/supascribe-notes-mcp/compare/v1.0.0...v1.1.0) (2026-02-15)
+
+
+### Features
+
+* add more tools  ([#5](https://github.com/anchildress1/supascribe-notes-mcp/issues/5)) ([77afcc2](https://github.com/anchildress1/supascribe-notes-mcp/commit/77afcc2cf491fbb1167fcfd69d92e59aac74f0d6))
+
+
+### Bug Fixes
+
+* **db:** harden function search_path and move pg_trgm out of public ([#7](https://github.com/anchildress1/supascribe-notes-mcp/issues/7)) ([41d7bc5](https://github.com/anchildress1/supascribe-notes-mcp/commit/41d7bc5e4318ba232d1ca4419f44d21b540c1e52))
+
 ## 1.0.0 (2026-02-13)
 
 ### ⚠ BREAKING CHANGES

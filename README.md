@@ -68,17 +68,7 @@ When adding/changing tools, bump `SERVER_VERSION` before deploy so ChatGPT refre
 
 ## Database Schema
 
-Apply migrations in order:
-
-```bash
-# Via Supabase CLI or dashboard SQL editor
-psql < supabase/migrations/001_create_cards.sql
-psql < supabase/migrations/002_create_card_revisions.sql
-psql < supabase/migrations/003_create_generation_runs.sql
-psql < supabase/migrations/004_add_lookup_indexes.sql
-psql < supabase/migrations/005_add_discovery_views.sql
-psql < supabase/migrations/006_secure_discovery_views.sql
-```
+Apply the migrations in `supabase/migrations` using the Supabase CLI or the SQL editor. Keep RLS enabled and re-run lint if you touch policies.
 
 ## Development
 

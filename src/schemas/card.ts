@@ -36,9 +36,14 @@ export const CardInputSchema = z.object({
     .min(1, 'fact is required')
     .describe('The main content or body of the card. Can include markdown.'),
   url: z
-    .string()
-    .url('url must be a valid URL')
-    .optional()
+    .preprocess((value) => {
+      if (value === null || value === undefined) return undefined;
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        return trimmed.length === 0 ? undefined : trimmed;
+      }
+      return value;
+    }, z.string().url('url must be a valid URL').optional())
     .describe('Source URL associated with the card content.'),
   tags: TagsSchema,
   projects: z

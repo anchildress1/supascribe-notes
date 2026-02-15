@@ -181,7 +181,8 @@ export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): o
           operationId: 'lookupCardById',
           'x-openai-isConsequential': false,
           summary: 'Lookup cards by ID',
-          description: 'Find specific cards using a list of UUIDs.',
+          description:
+            'Find specific cards using a list of UUIDs. Unknown IDs are omitted from the response, so the returned `cards` array may be empty.',
           security: [{ BearerAuth: [] }],
           requestBody: {
             required: true,

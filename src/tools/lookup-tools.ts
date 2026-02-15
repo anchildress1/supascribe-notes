@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { logger } from '../lib/logger.js';
 
-export async function handleLookupCardById(
+export async function handleLookupCardsById(
   supabase: SupabaseClient,
   ids: string[],
 ): Promise<CallToolResult> {

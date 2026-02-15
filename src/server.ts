@@ -14,7 +14,7 @@ import type { Config } from './config.js';
 import { handleHealth } from './tools/health.js';
 import { handleWriteCards } from './tools/write-cards.js';
 import {
-  handleLookupCardById,
+  handleLookupCardsById,
   handleLookupCategories,
   handleLookupProjects,
   handleLookupTags,
@@ -226,7 +226,7 @@ export function createApp(config: Config): express.Express {
         return;
       }
 
-      const result = await handleLookupCardById(supabase, bodyResult.data.ids);
+      const result = await handleLookupCardsById(supabase, bodyResult.data.ids);
       sendToolResult(res, result);
     } catch (err) {
       logger.error({ error: err }, 'REST lookup-card-by-id failed');
@@ -359,7 +359,7 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
   server.registerTool(
     'lookup_card_by_id',
     {
-      title: 'Lookup Card by ID',
+      title: 'Lookup Cards by ID',
       description: 'Find specific index cards by UUID list.',
       inputSchema: CardIdInputSchema,
       annotations: {
@@ -372,7 +372,7 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
         ui: { visibility: ['model', 'app'] },
       },
     },
-    async ({ ids }: CardIdInput) => handleLookupCardById(supabase, ids),
+    async ({ ids }: CardIdInput) => handleLookupCardsById(supabase, ids),
   );
 
   server.registerTool(

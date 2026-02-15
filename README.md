@@ -64,6 +64,14 @@ The OpenAPI surface at `/openapi.json` exposes these tool-compatible REST endpoi
 - `GET /api/lookup-tags`
 - `POST /api/search-cards`
 
+`lookup-card-by-id` expects an array payload:
+
+```json
+{
+  "ids": ["<uuid>", "<uuid>"]
+}
+```
+
 When adding/changing tools, bump `SERVER_VERSION` before deploy so ChatGPT refreshes cached tool metadata.
 
 ## Database Schema

@@ -174,13 +174,14 @@ describe('Lookup Tools Integration', () => {
         ...authHeaders,
         'content-type': 'application/json',
       },
-      body: { id: '88888888-8888-8888-8888-888888888888' },
+      body: { ids: ['88888888-8888-8888-8888-888888888888'] },
     });
 
     expect(res.statusCode).toBe(200);
-    const body = res._getJSON() as { objectID: string; title: string };
-    expect(body.objectID).toBe('88888888-8888-8888-8888-888888888888');
-    expect(body.title).toBe('Test Card 1');
+    const body = res._getJSON() as { cards: Array<{ objectID: string; title: string }> };
+    expect(body.cards).toHaveLength(1);
+    expect(body.cards[0].objectID).toBe('88888888-8888-8888-8888-888888888888');
+    expect(body.cards[0].title).toBe('Test Card 1');
   });
 
   it('returns lookup_card_by_id results for id arrays over REST', async () => {
@@ -204,6 +205,22 @@ describe('Lookup Tools Integration', () => {
       '88888888-8888-8888-8888-888888888888',
       '99999999-9999-9999-9999-999999999999',
     ]);
+  });
+
+  it('validates lookup_card_by_id input', async () => {
+    const { res } = await invokeApp(app, {
+      method: 'POST',
+      url: '/api/lookup-card-by-id',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: { ids: [] },
+    });
+
+    expect(res.statusCode).toBe(400);
+    const body = res._getJSON() as { error?: string };
+    expect(body.error).toBe('Validation failed');
   });
 
   it('returns categories over REST', async () => {

@@ -17,6 +17,7 @@ describe('Lookup Tools Unit Tests', () => {
         from: vi.fn().mockReturnThis(),
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
         ilike: vi.fn().mockReturnThis(),
         contains: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue(returnValue),
@@ -34,14 +35,16 @@ describe('Lookup Tools Unit Tests', () => {
     const id = '88888888-8888-8888-8888-888888888888';
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase = mockSupabase as any;
-    supabase.maybeSingle.mockResolvedValue({ data: { objectID: id }, error: null });
+    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
+      Promise.resolve({ data: [{ objectID: id }], error: null }).then(onfulfilled),
+    );
 
-    const result = await handleLookupCardById(supabase as SupabaseClient, id);
+    const result = await handleLookupCardById(supabase as SupabaseClient, [id]);
 
     expect(supabase.from).toHaveBeenCalledWith('cards');
-    expect(supabase.eq).toHaveBeenCalledWith('objectID', id);
+    expect(supabase.in).toHaveBeenCalledWith('objectID', [id]);
     expect(JSON.parse(result.content[0].type === 'text' ? result.content[0].text : '{}')).toEqual({
-      objectID: id,
+      cards: [{ objectID: id }],
     });
   });
 

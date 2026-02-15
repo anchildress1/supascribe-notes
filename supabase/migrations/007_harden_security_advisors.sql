@@ -18,5 +18,6 @@ BEGIN
 END
 $$;
 
--- Lock function lookup path to prevent role-mutable search_path execution.
-ALTER FUNCTION public.jsonb_array_cast(jsonb) SET search_path = '';
+-- Lock function lookup path to prevent role-mutable search_path execution,
+-- while retaining access to built-in functions.
+ALTER FUNCTION public.jsonb_array_cast(jsonb) SET search_path = 'pg_catalog';
